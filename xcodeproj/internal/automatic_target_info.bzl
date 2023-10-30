@@ -242,6 +242,7 @@ def calculate_automatic_target_info(ctx, build_mode, target):
         xcode_targets = _PLUGINS_XCODE_TARGETS
     elif rule_kind == "apple_universal_binary":
         deps = _BINARY_DEPS_ATTRS
+        is_supported = False
         is_top_level = True
         xcode_targets = _BINARY_XCODE_TARGETS
     elif AppleFrameworkImportInfo in target:

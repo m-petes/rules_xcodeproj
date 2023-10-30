@@ -221,14 +221,6 @@ XcodeProjOutputInfo = provider(
     },
 )
 
-XcodeProjRunnerOutputInfo = provider(
-    "Provides information about the outputs of the `xcodeproj_runner` rule.",
-    fields = {
-        "project_name": "The installed project name.",
-        "runner": "The xcodeproj runner.",
-    },
-)
-
 XcodeProjProvisioningProfileInfo = provider(
     "Provides information about a provisioning profile.",
     fields = {
@@ -239,5 +231,13 @@ The profile name (e.g. "iOS Team Provisioning Profile: com.example.app").
         "team_id": """\
 The Team ID the profile is associated with (e.g. "V82V4GQZXM").
 """,
+    },
+)
+
+XcodeProjRunnerOutputInfo = provider(
+    "Provides information about the outputs of the `xcodeproj_runner` rule.",
+    fields = {
+        "project_name": "The installed project name.",
+        "runner": "The xcodeproj runner.",
     },
 )

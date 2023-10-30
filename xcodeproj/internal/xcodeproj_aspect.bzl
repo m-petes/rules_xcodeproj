@@ -81,7 +81,16 @@ def _xcodeproj_aspect_impl(target, ctx):
 
     return providers
 
-def make_xcodeproj_aspect(*, build_mode, generator_name):
+def make_xcodeproj_aspect(
+        *,
+        build_mode,
+        # buildifier: disable=unused-variable
+        focused_labels,
+        generator_name,
+        # buildifier: disable=unused-variable
+        owned_extra_files,
+        # buildifier: disable=unused-variable
+        unfocused_labels):
     return aspect(
         implementation = _xcodeproj_aspect_impl,
         attr_aspects = ["*"],
