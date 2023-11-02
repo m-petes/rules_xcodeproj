@@ -29,19 +29,32 @@ extension Dictionary<TargetID, TopLevelTargetAttributes> {
 
         var keysWithValues: [(TargetID, TopLevelTargetAttributes)] = []
         for _ in (0..<targetCount) {
-            let id = try rawArgs.consumeArg(TargetID.self, in: url)
+            let id =
+                try rawArgs.consumeArg("target-id", as: TargetID.self, in: url)
             let bundleID =
-                try rawArgs.consumeArg(String?.self, in: url)
-            let outputsProductPath =
-                try rawArgs.consumeArg(String?.self, in: url)
+                try rawArgs.consumeArg("bundle-id", as: String?.self, in: url)
+            let outputsProductPath = try rawArgs.consumeArg(
+                "outputs-product-path",
+                as: String?.self,
+                in: url
+            )
             let linkParams =
-                try rawArgs.consumeArg(String?.self, in: url)
-            let executableName =
-                try rawArgs.consumeArg(String?.self, in: url)
-            let compileTargetIDs =
-                try rawArgs.consumeArg(String?.self, in: url)
-            let unitTestHost =
-                try rawArgs.consumeArg(TargetID?.self, in: url)
+                try rawArgs.consumeArg("link-params", as: String?.self, in: url)
+            let executableName = try rawArgs.consumeArg(
+                "executable-name",
+                as: String?.self,
+                in: url
+            )
+            let compileTargetIDs = try rawArgs.consumeArg(
+                "compile-target-ids",
+                as: String?.self,
+                in: url
+            )
+            let unitTestHost = try rawArgs.consumeArg(
+                "unit-test-host",
+                as: TargetID?.self,
+                in: url
+            )
 
             keysWithValues.append(
                 (

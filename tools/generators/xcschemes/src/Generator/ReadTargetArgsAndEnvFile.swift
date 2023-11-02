@@ -49,20 +49,30 @@ extension Generator.ReadTargetArgsAndEnvFile {
     ) {
         var rawArgsAndEnv = ArraySlice(try await url.allLines.collect())
 
-        let argsCount = try rawArgsAndEnv.consumeArg(Int.self, in: url)
+        let argsTargetCount = try rawArgsAndEnv.consumeArg(
+            "args-target-count",
+            as: Int.self,
+            in: url
+        )
 
         var argsKeysWithValues: [(TargetID, [CommandLineArgument])] = []
-        for _ in (0..<argsCount) {
-            let id = try rawArgsAndEnv.consumeArg(TargetID.self, in: url)
-            let targetArgsCount =
-                try rawArgsAndEnv.consumeArg(Int.self, in: url)
+        for _ in (0..<argsTargetCount) {
+            let id = try rawArgsAndEnv.consumeArg(
+                "arg-target-id",
+                as: TargetID.self,
+                in: url
+            )
+            let argsCount = try rawArgsAndEnv.consumeArg(
+                "args-count",
+                as: Int.self,
+                in: url
+            )
 
             var args: [CommandLineArgument] = []
-            for _ in (0..<targetArgsCount) {
+            for _ in (0..<argsCount) {
                 args.append(
                     .init(
-                        value:
-                            try rawArgsAndEnv.consumeArg(String.self, in: url)
+                        value: try rawArgsAndEnv.consumeArg("arg", in: url)
                     )
                 )
             }
@@ -70,18 +80,28 @@ extension Generator.ReadTargetArgsAndEnvFile {
             argsKeysWithValues.append((id, args))
         }
 
-        let envCount = try rawArgsAndEnv.consumeArg(Int.self, in: url)
+        let envTargetCount = try rawArgsAndEnv.consumeArg(
+            "env-target-count",
+            as: Int.self,
+            in: url
+        )
 
         var envKeysWithValues: [(TargetID, [EnvironmentVariable])] = []
-        for _ in (0..<envCount) {
-            let id = try rawArgsAndEnv.consumeArg(TargetID.self, in: url)
-            let targetEnvCount =
-                try rawArgsAndEnv.consumeArg(Int.self, in: url)
+        for _ in (0..<envTargetCount) {
+            let id = try rawArgsAndEnv.consumeArg(
+                "env-target-id",
+                as: TargetID.self,
+                in: url
+            )
+            let envCount =
+                try rawArgsAndEnv.consumeArg("env-count", as: Int.self, in: url)
 
             var env: [EnvironmentVariable] = []
-            for _ in (0..<targetEnvCount) {
-                let key = try rawArgsAndEnv.consumeArg(String.self, in: url)
-                let value = try rawArgsAndEnv.consumeArg(String.self, in: url)
+            for _ in (0..<envCount) {
+                let key =
+                    try rawArgsAndEnv.consumeArg("env-variable-key", in: url)
+                let value =
+                    try rawArgsAndEnv.consumeArg("env-variable-value", in: url)
                 env.append(.init(key: key, value: value))
             }
 

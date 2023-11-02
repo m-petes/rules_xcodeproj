@@ -222,7 +222,7 @@ def _write_target_build_settings(
 
     if generate_build_settings:
         build_settings_output = actions.declare_file(
-            "{}.rules_xcodeproj.target_build_settings".format(name),
+            "{}.rules_xcodeproj.build_settings".format(name),
         )
 
         # buildSettingsOutputPath
@@ -245,11 +245,8 @@ def _write_target_build_settings(
         args.add(TRUE_ARG if include_self_swift_debug_settings else FALSE_ARG)
 
         # transitiveSwiftDebugSettingPaths
-        args.add_all(
-            swift_debug_settings_to_merge,
-            omit_if_empty = False,
-            terminate_with = _FLAGS.args_separator,
-        )
+        args.add_all([swift_debug_settings_to_merge], map_each = _depset_len)
+        args.add_all(swift_debug_settings_to_merge)
 
         inputs = swift_debug_settings_to_merge
     else:
@@ -796,6 +793,7 @@ def _write_xcfilelists(*, actions, files, file_paths, generator_name):
     external_args.add_all(
         files,
         map_each = _filter_external_file,
+        uniquify = True,
     )
     external_args.add_all(
         file_paths,
@@ -812,6 +810,7 @@ def _write_xcfilelists(*, actions, files, file_paths, generator_name):
     generated_args.add_all(
         files,
         map_each = _filter_generated_file,
+        uniquify = True,
     )
     generated_args.add_all(
         file_paths,

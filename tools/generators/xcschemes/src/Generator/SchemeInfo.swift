@@ -1,7 +1,7 @@
 import ArgumentParser
 import XCScheme
 
-/// Provides information needed to create a custom scheme.
+/// Provides information needed to create a scheme.
 struct SchemeInfo: Equatable {
     struct ExecutionAction: Equatable {
         enum Action: String, ExpressibleByArgument {

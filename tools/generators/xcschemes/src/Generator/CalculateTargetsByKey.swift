@@ -11,8 +11,8 @@ extension Generator {
             self.callable = callable
         }
 
-        /// Calculates the `referencedContainer` attribute on `.xcscheme`
-        /// `BuildableReference` elements.
+        /// Calculates dictionaries that map `Target.Key` or `TargetID` to
+        /// `Target`s.
         func callAsFunction(
             targets: [Target]
         ) -> (

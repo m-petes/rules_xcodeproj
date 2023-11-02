@@ -23,7 +23,7 @@ extension Generator {
             self.callable = callable
         }
 
-        /// Creates and writes automatically generated `.xcscheme`s to disk.
+        /// Creates and writes a `xcschememanagement.plist` file to disk.
         func callAsFunction(
             schemeNames: [String],
             to outputPath: URL

@@ -56,10 +56,13 @@ extension Dictionary<TargetID, Target.UnitTestHost> {
 
         var keysWithValues: [(TargetID, Target.UnitTestHost)] = []
         for _ in (0..<targetCount) {
-            let id = try rawArgs.consumeArg(TargetID.self, in: url)
-            let packageBinDir = try rawArgs.consumeArg(String.self, in: url)
-            let productPath = try rawArgs.consumeArg(String.self, in: url)
-            let executableName = try rawArgs.consumeArg(String.self, in: url)
+            let id =
+                try rawArgs.consumeArg("target-id", as: TargetID.self, in: url)
+            let packageBinDir =
+                try rawArgs.consumeArg("package-bin-dir", in: url)
+            let productPath = try rawArgs.consumeArg("product-path", in: url)
+            let executableName =
+                try rawArgs.consumeArg("executable-name", in: url)
 
             keysWithValues.append(
                 (

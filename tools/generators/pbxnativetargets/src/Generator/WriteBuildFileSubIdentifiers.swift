@@ -42,10 +42,9 @@ extension Generator.WriteBuildFileSubIdentifiers {
                 withIntermediateDirectories: true
             )
         } catch {
-            throw PreconditionError(message: """
-Failed to create parent directories for "\(url.path)": \
-\(error.localizedDescription)
-""")
+            throw PreconditionError(message: url.prefixMessage("""
+Failed to create parent directories: \(error.localizedDescription)
+"""))
         }
 
         // Write

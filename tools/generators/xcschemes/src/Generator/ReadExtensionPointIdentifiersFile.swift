@@ -45,9 +45,9 @@ extension Generator.ReadExtensionPointIdentifiersFile {
                 from: Data(contentsOf: url)
             )
         } catch {
-            throw PreconditionError(message: """
-"\(url.path)": \(error.localizedDescription)
-""")
+            throw PreconditionError(
+                message: url.prefixMessage(error.localizedDescription)
+            )
         }
     }
 }

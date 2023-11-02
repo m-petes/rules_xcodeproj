@@ -37,25 +37,37 @@ extension Dictionary<TargetID, TargetArguments> {
     static func parse(from url: URL) async throws -> Self {
         var rawArgs = ArraySlice(try await url.allLines.collect())
 
-        let targetCount = try rawArgs.consumeArg(Int.self, in: url)
+        let targetCount =
+            try rawArgs.consumeArg("target-count", as: Int.self, in: url)
 
         var keysWithValues: [(TargetID, TargetArguments)] = []
         for _ in (0..<targetCount) {
-            let id = try rawArgs.consumeArg(TargetID.self, in: url)
-            let productType =
-                try rawArgs.consumeArg(PBXProductType.self, in: url)
-            let packageBinDir = try rawArgs.consumeArg(String.self, in: url)
-            let productName = try rawArgs.consumeArg(String.self, in: url)
-            let productBasename = try rawArgs.consumeArg(String.self, in: url)
-            let moduleName = try rawArgs.consumeArg(String.self, in: url)
-            let platform = try rawArgs.consumeArg(Platform.self, in: url)
-            let osVersion =
-                try rawArgs.consumeArg(SemanticVersion.self, in: url)
-            let arch = try rawArgs.consumeArg(String.self, in: url)
+            let id =
+                try rawArgs.consumeArg("target-id", as: TargetID.self, in: url)
+            let productType = try rawArgs.consumeArg(
+                "product-type",
+                as: PBXProductType.self,
+                in: url
+            )
+            let packageBinDir =
+                try rawArgs.consumeArg("package-bin-dir", in: url)
+            let productName = try rawArgs.consumeArg("product-name", in: url)
+            let productBasename =
+                try rawArgs.consumeArg("product-basename", in: url)
+            let moduleName = try rawArgs.consumeArg("module-name", in: url)
+            let platform =
+                try rawArgs.consumeArg("platform", as: Platform.self, in: url)
+            let osVersion = try rawArgs.consumeArg(
+                "os-version",
+                as: SemanticVersion.self,
+                in: url
+            )
+            let arch = try rawArgs.consumeArg("arch", in: url)
             let dSYMPathsBuildSetting =
-                try rawArgs.consumeArg(String.self, in: url)
+                try rawArgs.consumeArg("dsym-paths-build-setting", in: url)
             let buildSettingsFile = try rawArgs.consumeArg(
-                URL?.self,
+                "build-settings-file",
+                as: URL?.self,
                 in: url,
                 transform: { path in
                     guard !path.isEmpty else {
@@ -64,15 +76,29 @@ extension Dictionary<TargetID, TargetArguments> {
                     return URL(fileURLWithPath: path, isDirectory: false)
                 }
             )
-            let hasCParams = try rawArgs.consumeArg(Bool.self, in: url)
-            let hasCxxParams = try rawArgs.consumeArg(Bool.self, in: url)
-            let srcs = try rawArgs.consumeArgs(BazelPath.self, in: url)
-            let nonArcSrcs = try rawArgs.consumeArgs(BazelPath.self, in: url)
-            let resources = try rawArgs.consumeArgs(BazelPath.self, in: url)
-            let folderResources =
-                try rawArgs.consumeArgs(BazelPath.self, in: url)
+            let hasCParams =
+                try rawArgs.consumeArg("has-c-params", as: Bool.self, in: url)
+            let hasCxxParams =
+                try rawArgs.consumeArg("has-cxx-params", as: Bool.self, in: url)
+            let srcs =
+                try rawArgs.consumeArgs("srcs", as: BazelPath.self, in: url)
+            let nonArcSrcs = try rawArgs.consumeArgs(
+                "non-arc-srcs",
+                as: BazelPath.self,
+                in: url
+            )
+            let resources = try rawArgs.consumeArgs(
+                "resources",
+                as: BazelPath.self,
+                in: url
+            )
+            let folderResources = try rawArgs.consumeArgs(
+                "folder-resources",
+                as: BazelPath.self,
+                in: url
+            )
             let xcodeConfigurations =
-                try rawArgs.consumeArgs(String.self, in: url)
+                try rawArgs.consumeArgs("xcode-configurations", in: url)
 
             var buildSettings: [PlatformVariantBuildSetting] = []
             if let buildSettingsFile {
@@ -120,11 +146,5 @@ extension Dictionary<TargetID, TargetArguments> {
         }
 
         return Dictionary(uniqueKeysWithValues: keysWithValues)
-    }
-}
-
-private extension Substring {
-    var nullsToNewlines: String {
-        replacingOccurrences(of: "\0", with: "\n")
     }
 }

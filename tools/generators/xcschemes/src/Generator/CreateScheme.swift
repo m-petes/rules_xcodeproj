@@ -38,7 +38,7 @@ extension Generator {
             self.callable = callable
         }
 
-        /// Creates the XML for an automatically generated `.xcscheme` file.
+        /// Creates the XML for an `.xcscheme` file.
         func callAsFunction(
             defaultXcodeConfiguration: String,
             extensionPointIdentifiers: [TargetID: ExtensionPointIdentifier],

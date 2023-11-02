@@ -223,6 +223,8 @@ _XCSCHEMES = [
                 "/tmp/pbxproj_partials/consolidation_maps_inputs_file",
                 # minimumXcodeVersion
                 "14.0",
+                # targetNameMode
+                "auto",
                 # targetAndTestHosts
                 "--target-and-test-hosts",
                 "//tools/generators/legacy/test:tests.__internal__.__test_bundle applebin_macos-darwin_x86_64-dbg-STABLE-3",
@@ -298,10 +300,12 @@ _XCSCHEMES = [
                 "/tmp/pbxproj_partials/target_build_settings",
                 # swiftDebugSettingsOutputPath
                 "/tmp/pbxproj_partials/swift_debug_settings",
+                # includeSelfSwiftDebugSettings
+                "1",
                 # transitiveSwiftDebugSettingPaths
+                "2",
                 "/tmp/pbxproj_partials/transitive_swift_debug_settings_0",
                 "/tmp/pbxproj_partials/transitive_swift_debug_settings_1",
-                "---",
                 # deviceFamily
                 "4",
                 # extensionSafe

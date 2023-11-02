@@ -16,7 +16,7 @@ extension Generator {
             self.callable = callable
         }
 
-        /// Creates and writes automatically generated `.xcscheme`s to disk.
+        /// Creates `SchemeInfo`s for custom schemes.
         func callAsFunction(
             commandLineArguments: [TargetID: [CommandLineArgument]],
             customSchemesFile: URL,
@@ -69,18 +69,21 @@ extension Generator.CreateCustomSchemeInfos {
 
         var rawArgs = ArraySlice(try await customSchemesFile.allLines.collect())
 
-        let schemeCount =
-            try rawArgs.consumeArg(Int.self, in: customSchemesFile)
+        let schemeCount = try rawArgs.consumeArg(
+            "scheme-count",
+            as: Int.self,
+            in: customSchemesFile
+        )
 
         var schemeInfos: [SchemeInfo] = []
         for _ in (0..<schemeCount) {
             let name =
-                try rawArgs.consumeArg(String.self, in: customSchemesFile)
+                try rawArgs.consumeArg("scheme-name", in: customSchemesFile)
 
             var allTargetIDs: Set<TargetID> = []
 
             let test = try rawArgs.consumeArg(
-                SchemeInfo.Test.self,
+                as: SchemeInfo.Test.self,
                 in: customSchemesFile,
                 allTargetIDs: &allTargetIDs,
                 targetCommandLineArguments: commandLineArguments,
@@ -89,7 +92,7 @@ extension Generator.CreateCustomSchemeInfos {
             )
 
             let run = try rawArgs.consumeArg(
-                SchemeInfo.Run.self,
+                as: SchemeInfo.Run.self,
                 in: customSchemesFile,
                 allTargetIDs: &allTargetIDs,
                 extensionHostIDs: extensionHostIDs,
@@ -101,7 +104,7 @@ extension Generator.CreateCustomSchemeInfos {
             )
 
             let profile = try rawArgs.consumeArg(
-                SchemeInfo.Profile.self,
+                as: SchemeInfo.Profile.self,
                 in: customSchemesFile,
                 allTargetIDs: &allTargetIDs,
                 extensionHostIDs: extensionHostIDs,
@@ -130,12 +133,19 @@ private extension ArraySlice where Element == String {
     // MARK: - CommandLineArgument
 
     mutating func consumeArgs(
-        _ type: CommandLineArgument.Type,
+        _ namePrefix: String,
+        as type: CommandLineArgument.Type,
         in url: URL,
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> [CommandLineArgument]? {
-        let count = try consumeArg(Int.self, in: url, file: file, line: line)
+        let count = try consumeArg(
+            "\(namePrefix)-arg-count",
+            as: Int.self,
+            in: url,
+            file: file,
+            line: line
+        )
         guard count != -1 else {
             return nil
         }
@@ -143,13 +153,14 @@ private extension ArraySlice where Element == String {
         var commandLineArguments: [CommandLineArgument] = []
         for _ in (0..<count) {
             let value = try consumeArg(
-                String.self,
+                "\(namePrefix)-arg",
                 in: url,
                 file: file,
                 line: line
             ).nullsToNewlines
             let enabled = try consumeArg(
-                Bool.self,
+                "\(namePrefix)-arg-enabled",
+                as: Bool.self,
                 in: url,
                 file: file,
                 line: line
@@ -166,12 +177,19 @@ private extension ArraySlice where Element == String {
     // MARK: - EnvironmentVariable
 
     mutating func consumeArgs(
-        _ type: EnvironmentVariable.Type,
+        _ namePrefix: String,
+        as type: EnvironmentVariable.Type,
         in url: URL,
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> [EnvironmentVariable]? {
-        let count = try consumeArg(Int.self, in: url, file: file, line: line)
+        let count = try consumeArg(
+            "\(namePrefix)-env-var-count",
+            as: Int.self,
+            in: url,
+            file: file,
+            line: line
+        )
         guard count != -1 else {
             return nil
         }
@@ -179,19 +197,20 @@ private extension ArraySlice where Element == String {
         var environmentVariables: [EnvironmentVariable] = []
         for _ in (0..<count) {
             let key = try consumeArg(
-                String.self,
+                "\(namePrefix)-env-var-key",
                 in: url,
                 file: file,
                 line: line
             ).nullsToNewlines
             let value = try consumeArg(
-                String.self,
+                "\(namePrefix)-env-var-value",
                 in: url,
                 file: file,
                 line: line
             ).nullsToNewlines
             let enabled = try consumeArg(
-                Bool.self,
+                "\(namePrefix)-env-var-enabled",
+                as: Bool.self,
                 in: url,
                 file: file,
                 line: line
@@ -208,7 +227,8 @@ private extension ArraySlice where Element == String {
     // MARK: - SchemeInfo.LaunchTarget
 
     mutating func consumeArg(
-        _ type: SchemeInfo.LaunchTarget?.Type,
+        _ namePrefix: String,
+        as type: SchemeInfo.LaunchTarget?.Type,
         in url: URL,
         allTargetIDs: inout Set<TargetID>,
         context: @autoclosure () -> String,
@@ -226,13 +246,15 @@ private extension ArraySlice where Element == String {
         [EnvironmentVariable]
     ) {
         let id = try consumeArg(
-            TargetID?.self,
+            "\(namePrefix)-launch-target-id",
+            as: TargetID?.self,
             in: url,
             file: file,
             line: line
         )
         let extensionHostID = try consumeArg(
-            TargetID?.self,
+            "\(namePrefix)-extension-host",
+            as: TargetID?.self,
             in: url,
             file: file,
             line: line
@@ -303,7 +325,7 @@ set
     // MARK: - SchemeInfo.Profile
 
     mutating func consumeArg(
-        _ type: SchemeInfo.Profile.Type,
+        as type: SchemeInfo.Profile.Type,
         in url: URL,
         allTargetIDs: inout Set<TargetID>,
         extensionHostIDs: [TargetID: [TargetID]],
@@ -315,7 +337,8 @@ set
         line: UInt = #line
     ) throws -> SchemeInfo.Profile {
         let buildTargets = try consumeArgs(
-            Target.self,
+            "profile-build-targets",
+            as: Target.self,
             in: url,
             transform: { id in
                 return try targetsByID.value(
@@ -328,20 +351,33 @@ set
             .formUnion(buildTargets.map(\.key.sortedIds.first!))
 
         let specifiedCommandLineArguments =
-            try consumeArgs(CommandLineArgument.self, in: url)
+            try consumeArgs("profile", as: CommandLineArgument.self, in: url)
         let specifiedEnvironmentVariables =
-            try consumeArgs(EnvironmentVariable.self, in: url)
-        let environmentVariablesIncludeDefaults =
-            try consumeArg(Bool.self, in: url)
-        let useRunArgsAndEnv = try consumeArg(Bool.self, in: url)
-        let xcodeConfiguration = try consumeArg(String?.self, in: url)
+            try consumeArgs("profile", as: EnvironmentVariable.self, in: url)
+        let environmentVariablesIncludeDefaults = try consumeArg(
+            "profile-include-default-env",
+            as: Bool.self,
+            in: url
+        )
+
+        let useRunArgsAndEnv = try consumeArg(
+            "profile-use-run-args-and-env",
+            as: Bool.self,
+            in: url
+        )
+        let xcodeConfiguration = try consumeArg(
+            "profile-xcode-configuration",
+            as: String?.self,
+            in: url
+        )
 
         var (
             launchTarget,
             commandLineArguments,
             environmentVariables
         ) = try consumeArg(
-            SchemeInfo.LaunchTarget?.self,
+            "profile",
+            as: SchemeInfo.LaunchTarget?.self,
             in: url,
             allTargetIDs: &allTargetIDs,
             context: #"Custom scheme "\#(name)"'s profile launch target"#,
@@ -352,7 +388,11 @@ set
             targetEnvironmentVariables: targetEnvironmentVariables,
             targetsByID: targetsByID
         )
-        let customWorkingDirectory = try consumeArg(String?.self, in: url)
+        let customWorkingDirectory = try consumeArg(
+            "profile-custom-working-directory",
+            as: String?.self,
+            in: url
+        )
 
         if environmentVariablesIncludeDefaults {
             environmentVariables.insert(
@@ -375,7 +415,7 @@ set
     // MARK: - SchemeInfo.Run
 
     mutating func consumeArg(
-        _ type: SchemeInfo.Run.Type,
+        as type: SchemeInfo.Run.Type,
         in url: URL,
         allTargetIDs: inout Set<TargetID>,
         extensionHostIDs: [TargetID: [TargetID]],
@@ -388,7 +428,8 @@ set
         line: UInt = #line
     ) throws -> SchemeInfo.Run {
         let buildTargets = try consumeArgs(
-            Target.self,
+            "run-build-targets",
+            as: Target.self,
             in: url,
             transform: { id in
                 return try targetsByID
@@ -398,23 +439,37 @@ set
         allTargetIDs.formUnion(buildTargets.map(\.key.sortedIds.first!))
 
         let specifiedCommandLineArguments =
-            try consumeArgs(CommandLineArgument.self, in: url)
+            try consumeArgs("run", as: CommandLineArgument.self, in: url)
         let specifiedEnvironmentVariables =
-            try consumeArgs(EnvironmentVariable.self, in: url)
+            try consumeArgs("run", as: EnvironmentVariable.self, in: url)
         let environmentVariablesIncludeDefaults =
-            try consumeArg(Bool.self, in: url)
+            try consumeArg("run-include-default-env", as: Bool.self, in: url)
 
-        let enableAddressSanitizer = try consumeArg(Bool.self, in: url)
-        let enableThreadSanitizer = try consumeArg(Bool.self, in: url)
-        let enableUBSanitizer = try consumeArg(Bool.self, in: url)
-        let xcodeConfiguration = try consumeArg(String?.self, in: url)
+        let enableAddressSanitizer = try consumeArg(
+            "run-enable-address-sanitizer",
+            as: Bool.self,
+            in: url
+        )
+        let enableThreadSanitizer = try consumeArg(
+            "run-enable-thread-sanitizer",
+            as: Bool.self,
+            in: url
+        )
+        let enableUBSanitizer = try consumeArg(
+            "run-enable-undefined-behavior-sanitizer",
+            as: Bool.self,
+            in: url
+        )
+        let xcodeConfiguration =
+            try consumeArg("run-xcode-configuration", as: String?.self, in: url)
 
         var (
             launchTarget,
             commandLineArguments,
             environmentVariables
         ) = try consumeArg(
-            SchemeInfo.LaunchTarget?.self,
+            "run",
+            as: SchemeInfo.LaunchTarget?.self,
             in: url,
             allTargetIDs: &allTargetIDs,
             context: #"Custom scheme "\#(name)"'s run launch target"#,
@@ -425,7 +480,11 @@ set
             targetEnvironmentVariables: targetEnvironmentVariables,
             targetsByID: targetsByID
         )
-        let customWorkingDirectory = try consumeArg(String?.self, in: url)
+        let customWorkingDirectory = try consumeArg(
+            "run-custom-working-directory",
+            as: String?.self,
+            in: url
+        )
 
         if environmentVariablesIncludeDefaults {
             environmentVariables.insert(
@@ -458,7 +517,7 @@ set
     // MARK: - SchemeInfo.Test
 
     mutating func consumeArg(
-        _ type: SchemeInfo.Test.Type,
+        as type: SchemeInfo.Test.Type,
         in url: URL,
         allTargetIDs: inout Set<TargetID>,
         targetCommandLineArguments: [TargetID: [CommandLineArgument]],
@@ -467,12 +526,14 @@ set
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> SchemeInfo.Test {
-        let testTargetCount = try consumeArg(Int.self, in: url)
+        let testTargetCount =
+            try consumeArg("test-target-count", as: Int.self, in: url)
 
         var testTargets: [SchemeInfo.TestTarget] = []
         for _ in (0..<testTargetCount) {
-            let id = try consumeArg(TargetID.self, in: url)
-            let enabled = try consumeArg(Bool.self, in: url)
+            let id =
+                try consumeArg("test-target-id", as: TargetID.self, in: url)
+            let enabled = try consumeArg("test-enabled", as: Bool.self, in: url)
 
             testTargets.append(
                 .init(
@@ -488,7 +549,8 @@ set
             .formUnion(testTargets.map(\.target.key.sortedIds.first!))
 
         let buildTargets = try consumeArgs(
-            Target.self,
+            "test-build-targets",
+            as: Target.self,
             in: url,
             transform: { id in
                 return try targetsByID
@@ -498,16 +560,34 @@ set
         allTargetIDs.formUnion(buildTargets.map(\.key.sortedIds.first!))
 
         let specifiedCommandLineArguments =
-            try consumeArgs(CommandLineArgument.self, in: url)
+            try consumeArgs("test", as: CommandLineArgument.self, in: url)
         let specifiedEnvironmentVariables =
-            try consumeArgs(EnvironmentVariable.self, in: url)
+            try consumeArgs("test", as: EnvironmentVariable.self, in: url)
         let environmentVariablesIncludeDefaults =
-            try consumeArg(Bool.self, in: url)
-        let useRunArgsAndEnv = try consumeArg(Bool.self, in: url)
-        let enableAddressSanitizer = try consumeArg(Bool.self, in: url)
-        let enableThreadSanitizer = try consumeArg(Bool.self, in: url)
-        let enableUBSanitizer = try consumeArg(Bool.self, in: url)
-        let xcodeConfiguration = try consumeArg(String?.self, in: url)
+            try consumeArg("test-include-default-env", as: Bool.self, in: url)
+
+        let useRunArgsAndEnv =
+            try consumeArg("test-use-run-args-and-env", as: Bool.self, in: url)
+        let enableAddressSanitizer = try consumeArg(
+            "test-enable-address-sanitizer",
+            as: Bool.self,
+            in: url
+        )
+        let enableThreadSanitizer = try consumeArg(
+            "test-enable-thread-sanitizer",
+            as: Bool.self,
+            in: url
+        )
+        let enableUBSanitizer = try consumeArg(
+            "test-enable-undefined-behavior-sanitizer",
+            as: Bool.self,
+            in: url
+        )
+        let xcodeConfiguration = try consumeArg(
+            "test-xcode-configuration",
+            as: String?.self,
+            in: url
+        )
 
         let firstTestTargetID = testTargets.first?.target.key.sortedIds.first!
 
@@ -602,16 +682,20 @@ private extension Dictionary where
         var ret: [String: [SchemeInfo.ExecutionAction]] = [:]
 
         while !rawArgs.isEmpty {
-            let schemeName = try rawArgs.consumeArg(String.self, in: url)
-            let action = try rawArgs
-                .consumeArg(SchemeInfo.ExecutionAction.Action.self, in: url)
-            let isPreAction = try rawArgs.consumeArg(Bool.self, in: url)
-            let title =
-                try rawArgs.consumeArg(String.self, in: url).nullsToNewlines
+            let schemeName = try rawArgs.consumeArg("scheme-name", in: url)
+            let action = try rawArgs.consumeArg(
+                "action",
+                as: SchemeInfo.ExecutionAction.Action.self,
+                in: url
+            )
+            let isPreAction =
+                try rawArgs.consumeArg("is-pre-action", as: Bool.self, in: url)
+            let title = try rawArgs.consumeArg("title", in: url).nullsToNewlines
             let scriptText =
-                try rawArgs.consumeArg(String.self, in: url).nullsToNewlines
-            let id = try rawArgs.consumeArg(TargetID.self, in: url)
-            let order = try rawArgs.consumeArg(Int?.self, in: url)
+                try rawArgs.consumeArg("script-text", in: url).nullsToNewlines
+            let id =
+                try rawArgs.consumeArg("target-id", as: TargetID.self, in: url)
+            let order = try rawArgs.consumeArg("order", as: Int?.self, in: url)
 
             ret[schemeName, default: []].append(
                 .init(
@@ -644,11 +728,5 @@ private extension PBXProductType {
         default:
             return false
         }
-    }
-}
-
-private extension String {
-    var nullsToNewlines: String {
-        replacingOccurrences(of: "\0", with: "\n")
     }
 }

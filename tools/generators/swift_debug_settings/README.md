@@ -5,7 +5,23 @@ for a given Xcode configuration.
 
 ## Inputs
 
-The generator accepts the command-line arguments FIXME.
+The generator accepts the following command-line arguments:
+
+- Positional `colorize`
+- Positional `output-path`
+- Positional list `<key> <file> ...`
+
+Here is an example invocation:
+
+```shell
+$ swift_debug_settings \
+    0 \
+    /tmp/pbxproj_partials/Debug-swift_debug_settings.py \
+    'arm64-apple-macosx generator' \
+    /tmp/pbxproj_partials/generator.rules_xcodeproj.debug_settings \
+    'arm64-apple-macosx swiftc' \
+    /tmp/pbxproj_partials/swiftc.rules_xcodeproj.debug_settings
+```
 
 ## Output
 

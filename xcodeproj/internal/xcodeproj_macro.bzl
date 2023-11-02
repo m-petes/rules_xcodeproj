@@ -250,10 +250,13 @@ def xcodeproj(
         schemes: Optional. A `list` of values returned by
             `xcode_schemes.scheme`.
 
+            This and the `scheme_autogeneration_mode` argument together
+            customize how schemes for targets are generated, when using
+            `generation_mode = "legacy"`.
+
             Target labels listed in the schemes need to be from the transitive
             dependencies of the targets specified in the `top_level_targets`
-            argument. This and the `scheme_autogeneration_mode` argument
-            together customize how schemes for those targets are generated.
+            argument.
         target_name_mode: Optional. Specifies how Xcode targets names are
             represented:
 
@@ -345,6 +348,12 @@ def xcodeproj(
             Refer to the
             [bazel documentation](https://bazel.build/extending/config#defining)
             on how to define the transition settings dictionary.
+        xcschemes: Optional. A `list` of values returned by
+            `xcschemes.scheme`.
+
+            This and the `scheme_autogeneration_mode` argument together
+            customize how schemes for targets are generated, when using
+            `generation_mode = "incremental"`.
         **kwargs: Additional arguments to pass to the underlying `xcodeproj`
             rule specified by `xcodeproj_rule`.
     """

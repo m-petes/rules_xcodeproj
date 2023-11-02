@@ -3,9 +3,9 @@ import XCScheme
 
 /// A type that generates and writes to disk `.xcscheme` files for a project.
 ///
-/// The `Generator` type is stateless. It can be used to generate multiple
-/// partials. The `generate()` method is passed all the inputs needed to
-/// generate a partial.
+/// The `Generator` type is stateless. It can be used to generate `.xcscheme`
+/// files for multiple projects. The `generate()` method is passed all the
+/// inputs needed to generate the files.
 struct Generator {
     private let environment: Environment
 

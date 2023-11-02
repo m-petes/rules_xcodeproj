@@ -304,6 +304,7 @@ After removing unfocused targets, no targets remain. Please check your \
         generator_name = name,
         install_path = install_path,
         minimum_xcode_version = minimum_xcode_version,
+        target_name_mode = ctx.attr.target_name_mode,
         shard_count = ctx.attr.generation_shard_count,
         xcode_target_configurations = xcode_target_configurations,
         xcode_targets_by_label = xcode_targets_by_label,

@@ -47,9 +47,11 @@ extension Generator.ReadTransitivePreviewReferencesFile {
 
         var keysWithValues: [(TargetID, [BuildableReference])] = []
         while !rawArgs.isEmpty {
-            let id = try rawArgs.consumeArg(TargetID.self, in: url)
+            let id =
+                try rawArgs.consumeArg("target-id", as: TargetID.self, in: url)
             let buildableReferences = try rawArgs.consumeArgs(
-                BuildableReference.self,
+                "buildable-references",
+                as: BuildableReference.self,
                 in: url,
                 transform: { id in
                      try targetsByID

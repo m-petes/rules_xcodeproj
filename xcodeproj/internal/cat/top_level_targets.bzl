@@ -1169,7 +1169,7 @@ def _process_unfocused_top_level_target(
         mergeable_infos = EMPTY_DEPSET,
         merged_target_ids = None,
         outputs = output_files.merge(transitive_infos = transitive_infos),
-        platform = platform.platform,
+        platform = platform.apple_platform,
         swift_debug_settings = EMPTY_DEPSET,
         top_level_focused_deps = top_level_focused_deps,
         top_level_swift_debug_settings = swift_debug_settings,

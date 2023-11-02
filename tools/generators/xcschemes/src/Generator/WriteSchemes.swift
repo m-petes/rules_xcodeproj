@@ -22,7 +22,7 @@ extension Generator {
             self.callable = callable
         }
 
-        /// Creates and writes automatically generated `.xcscheme`s to disk.
+        /// Creates and writes `.xcscheme`s to disk.
         func callAsFunction(
             defaultXcodeConfiguration: String,
             extensionPointIdentifiers: [TargetID: ExtensionPointIdentifier],

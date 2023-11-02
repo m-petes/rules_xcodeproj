@@ -1,3 +1,5 @@
+/// `NSExtension.NSExtensionPointIdentifier` from application extension
+/// `Info.plist` files.
 enum ExtensionPointIdentifier: String, Decodable {
     case messagePayloadProvider = "com.apple.message-payload-provider"
     case widgetKitExtension = "com.apple.widgetkit-extension"
