@@ -124,6 +124,7 @@ def _target_info_fields(
         dependencies,
         env,
         extension_infoplists,
+        framework_product_mappings,
         focused_deps,
         hosted_targets,
         inputs,
@@ -154,6 +155,8 @@ def _target_info_fields(
         env: Maps to the `XcodeProjInfo.env` field.
         extension_infoplists: Maps to the
             `XcodeProjInfo.extension_infoplists` field.
+        framework_product_mappings: Maps to the
+            `XcodeProjInfo.framework_product_mappings` field.
         focused_deps: Maps to the `XcodeProjInfo.focused_deps` field.
         hosted_targets: Maps to the `XcodeProjInfo.hosted_targets` field.
         inputs: Maps to the `XcodeProjInfo.inputs` field.
@@ -187,6 +190,7 @@ def _target_info_fields(
         *   `dependencies`
         *   `env`
         *   `extension_infoplists`
+        *   `framework_product_mappings`
         *   `focused_deps`
         *   `hosted_targets`
         *   `inputs`
@@ -212,6 +216,7 @@ def _target_info_fields(
         "dependencies": dependencies,
         "env": env,
         "extension_infoplists": extension_infoplists,
+        "framework_product_mappings": framework_product_mappings,
         "focused_deps": focused_deps,
         "hosted_targets": hosted_targets,
         "inputs": inputs,
@@ -344,6 +349,12 @@ def _skip_target(
         extension_infoplists = memory_efficient_depset(
             transitive = [
                 info.extension_infoplists
+                for info in valid_transitive_infos
+            ],
+        ),
+        framework_product_mappings = memory_efficient_depset(
+            transitive = [
+                info.framework_product_mappings
                 for info in valid_transitive_infos
             ],
         ),
@@ -519,6 +530,13 @@ def _create_xcodeprojinfo(
             processed_target.extension_infoplists,
             transitive = [
                 info.extension_infoplists
+                for info in valid_transitive_infos
+            ],
+        ),
+        framework_product_mappings = memory_efficient_depset(
+            processed_target.framework_product_mappings,
+            transitive = [
+                info.framework_product_mappings
                 for info in valid_transitive_infos
             ],
         ),

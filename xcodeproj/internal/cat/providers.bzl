@@ -145,6 +145,14 @@ A `depset` of `struct`s with 'id' and 'infoplist' fields. The 'id' field is the
 target ID (see `xcode_target.id`) of the application extension target. The
 'infoplist' field is a `File` for the Info.plist for the target.
 """,
+        "framework_product_mappings": """\
+A `depset` of `(linker_path, product_path)` `tuple`s.
+`linker_path` is the `.framework/Executable` path used when linking to a
+framework. `product_path` is the path to a built `.framework` product. In
+particular, `product_path` can have a fully fleshed out framework, including
+resources, while `linker_path` will most likely only have a symlink to a
+`.dylib` in it.
+""",
         "focused_deps": "FIXME",
         "hosted_targets": """\
 A `depset` of `struct`s with 'host' and 'hosted' fields. The `host` field is the

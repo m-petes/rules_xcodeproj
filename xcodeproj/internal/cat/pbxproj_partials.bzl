@@ -19,8 +19,12 @@ load("//xcodeproj/internal:platforms.bzl", "PLATFORM_NAME")
 def _apple_platform_to_platform_name(platform):
     return PLATFORM_NAME[platform]
 
-def _build_setting_dirname(file):
-    path = file.dirname
+def _dynamic_framework_path(file_and_is_framework):
+    file, is_framework = file_and_is_framework
+    if is_framework:
+        path = file.path
+    else:
+        path = file.dirname
     if path.startswith("bazel-out/"):
         return "$(BAZEL_OUT){}".format(path[9:])
     if path.startswith("external/"):
@@ -191,6 +195,9 @@ def _write_target_build_settings(
         infoplist: An optional `File` containing the `Info.plist` for the
             target.
         name: The name of the target.
+        previews_dynamic_frameworks: A `list` of `(File, bool)` `tuple`s. If
+            the `bool` is `True`, the file points to a dynamic framework. If
+            `False`, the file points to an exceutable in a dynamic framework.
         skip_codesigning: If `True`, `CODE_SIGNING_ALLOWED = NO` will be set.
         swift_args: A `list` of `Args` for the `SwiftCompile` action for this
             target.
@@ -200,8 +207,9 @@ def _write_target_build_settings(
         tool: The executable that will generate the output files.
 
     Returns:
-        A `tuple` with two elements:
+        A `tuple` with three elements:
 
+        *   A `File` containing TBD.
         *   A `File` containing TBD.
         *   A `list` of `File`s containing C or C++ compiler arguments. These
             files should be added to compile outputs groups to ensure that Xcode
@@ -287,11 +295,11 @@ def _write_target_build_settings(
     # provisioningProfileIsXcodeManaged
     args.add(TRUE_ARG if provisioning_profile_is_xcode_managed else FALSE_ARG)
 
-    # previewFrameworkPaths
+    # previewsFrameworkPaths
     args.add_joined(
         previews_dynamic_frameworks,
         format_each = '"%s"',
-        map_each = _build_setting_dirname,
+        map_each = _dynamic_framework_path,
         omit_if_empty = False,
         join_with = " ",
     )

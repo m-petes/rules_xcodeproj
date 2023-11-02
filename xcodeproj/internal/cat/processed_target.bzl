@@ -10,6 +10,7 @@ def processed_target(
         compilation_providers,
         dependencies,
         extension_infoplists = None,
+        framework_product_mappings = None,
         hosted_targets = None,
         inputs,
         is_top_level = False,
@@ -35,6 +36,8 @@ def processed_target(
             target.
         extension_infoplists: A `list` of `File`s for the Info.plist's of
             application extension targets, or `None`.
+        framework_product_mappings: A `list` of `tuple`s for the
+            `XcodeProjInfo.framework_product_mappings` field.
         hosted_targets: An optional `list` of `struct`s as used in
             `XcodeProjInfo.hosted_targets`.
         inputs: A value as returned from `input_files.{collect,merge}` that will
@@ -72,6 +75,7 @@ def processed_target(
         compilation_providers = compilation_providers,
         dependencies = dependencies,
         extension_infoplists = extension_infoplists,
+        framework_product_mappings = framework_product_mappings,
         hosted_targets = hosted_targets,
         inputs = inputs,
         is_top_level = is_top_level,

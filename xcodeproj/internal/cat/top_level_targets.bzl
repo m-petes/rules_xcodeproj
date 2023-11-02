@@ -782,6 +782,11 @@ def _process_focused_top_level_target(
         linker_inputs = linker_inputs,
     )
 
+    framework_product_mappings = [
+        (file, product.file)
+        for file in product.framework_files.to_list()
+    ]
+
     app_icon_info = app_icons.get_info(ctx, automatic_target_info)
     infoplist = info_plists.adjust_for_xcode(
         info_plists.get_file(target),
@@ -852,6 +857,28 @@ def _process_focused_top_level_target(
             cxx_args = mergeable_info.cxx_args,
             swift_args = mergeable_info.swift_args,
         )
+
+        if mergeable_info.previews_dynamic_frameworks:
+            framework_product_map = {
+                linker_file: product_file
+                for linker_file, product_file in depset(
+                    transitive = [
+                        info.framework_product_mappings
+                        for info in transitive_infos
+                    ],
+                ).to_list()
+            }
+
+            previews_dynamic_frameworks = []
+            for linker_file in mergeable_info.previews_dynamic_frameworks:
+                product_file = framework_product_map.get(linker_file)
+                if product_file:
+                    previews_dynamic_frameworks.append((product_file, True))
+                else:
+                    previews_dynamic_frameworks.append((linker_file, False))
+        else:
+            previews_dynamic_frameworks = EMPTY_LIST
+
         swift_debug_settings_to_merge = (
             mergeable_info.swift_debug_settings_to_merge
         )
@@ -868,6 +895,7 @@ def _process_focused_top_level_target(
             cxx_sources = target_inputs.cxx_sources,
             target = target,
         )
+        previews_dynamic_frameworks = EMPTY_LIST
         indexstore_overrides = []
 
         # FIXME: Exclude `avoid_deps`
@@ -900,9 +928,7 @@ def _process_focused_top_level_target(
         infoplist = infoplist,
         is_top_level_target = True,
         name = label.name,
-        previews_dynamic_frameworks = (
-            mergeable_info.previews_dynamic_frameworks if mergeable_info else EMPTY_DEPSET
-        ),
+        previews_dynamic_frameworks = previews_dynamic_frameworks,
         previews_include_path = (
             mergeable_info.previews_include_path if mergeable_info else EMPTY_STRING
         ),
@@ -1013,6 +1039,7 @@ def _process_focused_top_level_target(
         compilation_providers = compilation_providers,
         dependencies = dependencies,
         extension_infoplists = extension_infoplists,
+        framework_product_mappings = framework_product_mappings,
         hosted_targets = hosted_targets,
         inputs = provider_inputs,
         is_top_level = True,
@@ -1076,7 +1103,7 @@ def _process_unfocused_top_level_target(
         ),
     )
 
-    product_for_lldb_context_key = process_product(
+    slim_product = process_product(
         ctx = ctx,
         label = label,
         target = target,
@@ -1091,6 +1118,11 @@ def _process_unfocused_top_level_target(
         executable_name = props.executable_name,
         linker_inputs = None,
     )
+
+    framework_product_mappings = [
+        (file, slim_product.file)
+        for file in slim_product.framework_files.to_list()
+    ]
 
     params = opts.collect_params(
         c_sources = None,
@@ -1129,7 +1161,7 @@ def _process_unfocused_top_level_target(
             (
                 _lldb_context_key(
                     platform = platform,
-                    product = product_for_lldb_context_key,
+                    product = slim_product,
                 ),
                 swift_debug_settings_file,
             ),
@@ -1163,6 +1195,7 @@ def _process_unfocused_top_level_target(
         ),
         compilation_providers = compilation_providers,
         dependencies = dependencies,
+        framework_product_mappings = framework_product_mappings,
         hosted_targets = None,
         inputs = provider_inputs,
         is_top_level = True,
