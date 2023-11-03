@@ -11,14 +11,16 @@ extension Generator {
             self.callable = callable
         }
 
-        /// Creates the Bazel integration build phase object for a target.
+        /// Creates the Bazel integration build phase `Object` for a target.
         func callAsFunction(
             subIdentifier: Identifiers.Targets.SubIdentifier,
-            productType: PBXProductType
-        ) -> Object {
+            productType: PBXProductType,
+            usesInfoPlist: Bool
+        ) -> Object? {
             return callable(
                 /*subIdentifier:*/ subIdentifier,
-                /*productType:*/ productType
+                /*productType:*/ productType,
+                /*usesInfoPlist:*/ usesInfoPlist
             )
         }
     }
@@ -29,13 +31,19 @@ extension Generator {
 extension Generator.CreateBazelIntegrationBuildPhaseObject {
     typealias Callable = (
         _ subIdentifier: Identifiers.Targets.SubIdentifier,
-        _ productType: PBXProductType
-    ) -> Object
+        _ productType: PBXProductType,
+        _ usesInfoPlist: Bool
+    ) -> Object?
 
     static func defaultCallable(
         subIdentifier: Identifiers.Targets.SubIdentifier,
-        productType: PBXProductType
-    ) -> Object {
+        productType: PBXProductType,
+        usesInfoPlist: Bool
+    ) -> Object? {
+        guard productType != .resourceBundle else {
+            return nil
+        }
+
         let shellScript = #"""
 set -euo pipefail
 
@@ -52,7 +60,7 @@ fi
 """#
 
         let infoPlistInputPath: String
-        if productType.isBundle {
+        if usesInfoPlist {
             infoPlistInputPath = #"""
 				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
 

@@ -21,7 +21,7 @@ class CreateSourcesBuildPhaseObjectTests: XCTestCase {
         // The tabs for indenting are intentional
         let expectedObject = Object(
             identifier: #"""
-A_SHARD00A_HASH000000000007 /* Sources */
+A_SHARD00A_HASH000000000006 /* Sources */
 """#,
             content: #"""
 {

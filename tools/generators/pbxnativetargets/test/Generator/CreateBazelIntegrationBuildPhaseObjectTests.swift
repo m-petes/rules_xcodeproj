@@ -13,6 +13,7 @@ class CreateBazelIntegrationBuildPhaseObjectTests: XCTestCase {
             hash: "A_HASH"
         )
         let productType = PBXProductType.commandLineTool
+        let usesInfoPlist = false
 
         // The tabs for indenting are intentional
         let expectedObject = Object(
@@ -45,7 +46,8 @@ A_SHARD00A_HASH000000000003 \#
         let object = Generator.CreateBazelIntegrationBuildPhaseObject
             .defaultCallable(
                 subIdentifier: subIdentifier,
-                productType: productType
+                productType: productType,
+                usesInfoPlist: usesInfoPlist
             )
 
         // Assert
@@ -53,7 +55,7 @@ A_SHARD00A_HASH000000000003 \#
         XCTAssertNoDifference(object, expectedObject)
     }
 
-    func test_infoPlist() {
+    func test_usesInfoPlist() {
         // Arrange
 
         let subIdentifier = Identifiers.Targets.SubIdentifier(
@@ -61,6 +63,7 @@ A_SHARD00A_HASH000000000003 \#
             hash: "A_HASH"
         )
         let productType = PBXProductType.application
+        let usesInfoPlist = true
 
         // The tabs for indenting are intentional
         let expectedObject = Object(
@@ -94,7 +97,8 @@ A_SHARD00A_HASH000000000003 \#
         let object = Generator.CreateBazelIntegrationBuildPhaseObject
             .defaultCallable(
                 subIdentifier: subIdentifier,
-                productType: productType
+                productType: productType,
+                usesInfoPlist: usesInfoPlist
             )
 
         // Assert

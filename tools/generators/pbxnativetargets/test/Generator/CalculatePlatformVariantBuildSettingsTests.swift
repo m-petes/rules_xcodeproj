@@ -112,6 +112,7 @@ class CalculatePlatformVariantBuildSettingsTests: XCTestCase {
     func test_executableExtension() async throws {
         // Arrange
 
+        let isBundle = false
         let productType = PBXProductType.dynamicLibrary
         let productPath = "some/tool.so"
         let platformVariant = Target.PlatformVariant.mock()
@@ -124,6 +125,7 @@ class CalculatePlatformVariantBuildSettingsTests: XCTestCase {
 
         let buildSettings =
             try await calculatePlatformVariantBuildSettingsWithDefaults(
+                isBundle: isBundle,
                 productType: productType,
                 productPath: productPath,
                 platformVariant: platformVariant
@@ -140,6 +142,7 @@ class CalculatePlatformVariantBuildSettingsTests: XCTestCase {
     func test_executableExtension_empty() async throws {
         // Arrange
 
+        let isBundle = false
         let productType = PBXProductType.dynamicLibrary
         let productPath = "some/tool"
         let platformVariant = Target.PlatformVariant.mock()
@@ -152,6 +155,7 @@ class CalculatePlatformVariantBuildSettingsTests: XCTestCase {
 
         let buildSettings =
             try await calculatePlatformVariantBuildSettingsWithDefaults(
+                isBundle: isBundle,
                 productType: productType,
                 productPath: productPath,
                 platformVariant: platformVariant
@@ -328,6 +332,7 @@ class CalculatePlatformVariantBuildSettingsTests: XCTestCase {
     func test_unitTest_noTestHost() async throws {
         // Arrange
 
+        let isBundle = true
         let productType = PBXProductType.unitTestBundle
         let productPath = "a/test.xctest"
         let platformVariant = Target.PlatformVariant.mock()
@@ -338,6 +343,7 @@ class CalculatePlatformVariantBuildSettingsTests: XCTestCase {
 
         let buildSettings =
             try await calculatePlatformVariantBuildSettingsWithDefaults(
+                isBundle: isBundle,
                 productType: productType,
                 productPath: productPath,
                 platformVariant: platformVariant
@@ -354,6 +360,7 @@ class CalculatePlatformVariantBuildSettingsTests: XCTestCase {
     func test_unitTest_withTestHost() async throws {
         // Arrange
 
+        let isBundle = true
         let productType = PBXProductType.unitTestBundle
         let productPath = "a/test.xctest"
         let platformVariant = Target.PlatformVariant.mock(
@@ -377,6 +384,7 @@ $(BUILD_DIR)/some/packageBin/dir/a/path/Host.app/Executable_Name
 
         let buildSettings =
             try await calculatePlatformVariantBuildSettingsWithDefaults(
+                isBundle: isBundle,
                 productType: productType,
                 productPath: productPath,
                 platformVariant: platformVariant
@@ -393,6 +401,7 @@ $(BUILD_DIR)/some/packageBin/dir/a/path/Host.app/Executable_Name
     func test_wrappedExtension() async throws {
         // Arrange
 
+        let isBundle = true
         let productType = PBXProductType.bundle
         let productPath = "another/bundle.odd"
         let platformVariant = Target.PlatformVariant.mock()
@@ -405,6 +414,7 @@ $(BUILD_DIR)/some/packageBin/dir/a/path/Host.app/Executable_Name
 
         let buildSettings =
             try await calculatePlatformVariantBuildSettingsWithDefaults(
+                isBundle: isBundle,
                 productType: productType,
                 productPath: productPath,
                 platformVariant: platformVariant
@@ -420,15 +430,18 @@ $(BUILD_DIR)/some/packageBin/dir/a/path/Host.app/Executable_Name
 }
 
 private func calculatePlatformVariantBuildSettingsWithDefaults(
+    isBundle: Bool = false,
     productType: PBXProductType = .staticLibrary,
     productPath: String = "bazel-out/some/path/libA.a",
     platformVariant: Target.PlatformVariant
 ) async throws -> [PlatformVariantBuildSetting] {
-    return try await Generator.CalculatePlatformVariantBuildSettings.defaultCallable(
-        productType: productType,
-        productPath: productPath,
-        platformVariant: platformVariant
-    )
+    return try await Generator.CalculatePlatformVariantBuildSettings
+        .defaultCallable(
+            isBundle: isBundle,
+            productType: productType,
+            productPath: productPath,
+            platformVariant: platformVariant
+        )
 }
 
 private let noPlatformBuildSettings: [String: String] = [
@@ -461,17 +474,16 @@ private extension Target.PlatformVariant {
         compileTargetIDs: String? = nil,
         packageBinDir: String = "some/path",
         outputsProductPath: String? = nil,
-        platform: Platform = .macOS,
-        osVersion: SemanticVersion = "9.4.1",
-        arch: String = "arm64",
         productName: String = "productName",
         productBasename: String = "libA.a",
         moduleName: String = "",
+        platform: Platform = .macOS,
+        osVersion: SemanticVersion = "9.4.1",
+        arch: String = "arm64",
         executableName: String? = nil,
         conditionalFiles: Set<BazelPath> = [],
-        buildSettingsFile: URL? = nil,
+        buildSettingsFromFile: [PlatformVariantBuildSetting] = [],
         linkParams: String? = nil,
-        hosts: [Target.Host] = [],
         unitTestHost: Target.UnitTestHost? = nil,
         dSYMPathsBuildSetting: String? = nil
     ) -> Self {
@@ -490,9 +502,8 @@ private extension Target.PlatformVariant {
             arch: arch,
             executableName: executableName,
             conditionalFiles: conditionalFiles,
-            buildSettingsFile: buildSettingsFile,
+            buildSettingsFromFile: buildSettingsFromFile,
             linkParams: linkParams,
-            hosts: hosts,
             unitTestHost: unitTestHost,
             dSYMPathsBuildSetting: dSYMPathsBuildSetting
         )

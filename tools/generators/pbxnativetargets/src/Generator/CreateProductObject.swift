@@ -15,14 +15,12 @@ extension Generator {
         func callAsFunction(
             productType: PBXProductType,
             productPath: String,
-            productBasename: String,
             subIdentifier: Identifiers.BuildFiles.SubIdentifier,
             isAssociatedWithTarget: Bool
         ) -> Object {
             return callable(
                 /*productType:*/ productType,
                 /*productPath:*/ productPath,
-                /*productBasename:*/ productBasename,
                 /*subIdentifier:*/ subIdentifier,
                 /*isAssociatedWithTarget:*/ isAssociatedWithTarget
             )
@@ -36,7 +34,6 @@ extension Generator.CreateProductObject {
     typealias Callable = (
         _ productType: PBXProductType,
         _ productPath: String,
-        _ productBasename: String,
         _ subIdentifier: Identifiers.BuildFiles.SubIdentifier,
         _ isAssociatedWithTarget: Bool
     ) -> Object
@@ -44,10 +41,11 @@ extension Generator.CreateProductObject {
     static func defaultCallable(
         productType: PBXProductType,
         productPath: String,
-        productBasename: String,
         subIdentifier: Identifiers.BuildFiles.SubIdentifier,
         isAssociatedWithTarget: Bool
     ) -> Object {
+        let productBasename = subIdentifier.path.path
+
         let explicitFileType: String
         let name: String
         let path: String

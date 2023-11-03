@@ -145,10 +145,6 @@ def process_library_target(
         target = target,
     )
 
-    # Check for `target.files != depset()` is to exclude source-less library
-    # targets (e.g. header or define only `objc_library` targets)
-    is_focused = generate_target and target.files != depset()
-
     (
         target_build_settings,
         swift_debug_settings_file,
@@ -159,7 +155,7 @@ def process_library_target(
         colorize = ctx.attr._colorize[BuildSettingInfo].value,
         conly_args = params.conly_args,
         cxx_args = params.cxx_args,
-        generate_build_settings = is_focused,
+        generate_build_settings = generate_target,
         name = label.name,
         swift_args = params.swift_args,
         swift_debug_settings_to_merge = EMPTY_DEPSET,
@@ -231,7 +227,7 @@ def process_library_target(
             ],
         )
 
-    if is_focused:
+    if generate_target:
         xcode_target = xcode_targets.make(
             build_settings_file = target_build_settings,
             configuration = configuration,

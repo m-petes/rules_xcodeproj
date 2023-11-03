@@ -12,7 +12,7 @@ extension Generator {
             self.callable = callable
         }
 
-        /// Creates the "Create Compile Dependencies" build phase object for a
+        /// Creates the "Create Compile Dependencies" build phase `Object` for a
         /// target.
         func callAsFunction(
             subIdentifier: Identifiers.Targets.SubIdentifier,

@@ -11,7 +11,7 @@ extension Generator {
             self.callable = callable
         }
 
-        /// Creates a `XCBuildConfiguration` object for a target.
+        /// Creates a `XCBuildConfiguration` `Object` for a target.
         func callAsFunction(
             name: String,
             index: UInt8,

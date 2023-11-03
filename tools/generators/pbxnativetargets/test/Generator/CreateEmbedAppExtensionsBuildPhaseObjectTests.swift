@@ -21,7 +21,7 @@ class CreateEmbedAppExtensionsBuildPhaseObjectTests: XCTestCase {
         // The tabs for indenting are intentional
         let expectedObject = Object(
             identifier: #"""
-A_SHARD00A_HASH000000000009 /* Embed App Extensions */
+A_SHARD00A_HASH000000000008 /* Embed App Extensions */
 """#,
             content: #"""
 {
@@ -34,6 +34,7 @@ A_SHARD00A_HASH000000000009 /* Embed App Extensions */
 				R_ID /* R.appex in Embed App Extensions */,
 				P_ID /* P.appex in Embed App Extensions */,
 			);
+			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		}
 """#

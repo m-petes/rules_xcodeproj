@@ -16,11 +16,13 @@ extension Generator {
         /// Calculates the build settings for one of the target's platform
         /// variants.
         func callAsFunction(
+            isBundle: Bool,
             productType: PBXProductType,
             productPath: String,
             platformVariant: Target.PlatformVariant
         ) async throws -> [PlatformVariantBuildSetting] {
             return try await callable(
+                /*isBundle:*/ isBundle,
                 /*productType:*/ productType,
                 /*productPath:*/ productPath,
                 /*platformVariant:*/ platformVariant
@@ -33,12 +35,14 @@ extension Generator {
 
 extension Generator.CalculatePlatformVariantBuildSettings {
     typealias Callable = (
+        _ isBundle: Bool,
         _ productType: PBXProductType,
         _ productPath: String,
         _ platformVariant: Target.PlatformVariant
     ) async throws -> [PlatformVariantBuildSetting]
 
     static func defaultCallable(
+        isBundle: Bool,
         productType: PBXProductType,
         productPath: String,
         platformVariant: Target.PlatformVariant
@@ -125,7 +129,7 @@ extension Generator.CalculatePlatformVariantBuildSettings {
         if productExtension != productType.fileExtension {
             buildSettings.append(
                 .init(
-                    key: productType.isBundle ?
+                    key: isBundle ?
                         "WRAPPER_EXTENSION" : "EXECUTABLE_EXTENSION",
                     value: productExtension.pbxProjEscaped
                 )

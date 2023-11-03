@@ -17,6 +17,7 @@ extension Generator {
             productType: PBXProductType,
             productName: String,
             productSubIdentifier: Identifiers.BuildFiles.SubIdentifier,
+            setsProductReference: Bool,
             dependencySubIdentifiers: [Identifiers.Targets.SubIdentifier],
             buildConfigurationListIdentifier: String,
             buildPhaseIdentifiers: [String]
@@ -26,6 +27,7 @@ extension Generator {
                 /*productType:*/ productType,
                 /*productName:*/ productName,
                 /*productSubIdentifier:*/ productSubIdentifier,
+                /*setsProductReference:*/ setsProductReference,
                 /*dependencySubIdentifiers:*/ dependencySubIdentifiers,
                 /*buildConfigurationListIdentifier:*/
                     buildConfigurationListIdentifier,
@@ -43,6 +45,7 @@ extension Generator.CreateTargetObject {
         _ productType: PBXProductType,
         _ productName: String,
         _ productSubIdentifier: Identifiers.BuildFiles.SubIdentifier,
+        _ setsProductReference: Bool,
         _ dependencySubIdentifiers: [Identifiers.Targets.SubIdentifier],
         _ buildConfigurationListIdentifier: String,
         _ buildPhaseIdentifiers: [String]
@@ -53,12 +56,13 @@ extension Generator.CreateTargetObject {
         productType: PBXProductType,
         productName: String,
         productSubIdentifier: Identifiers.BuildFiles.SubIdentifier,
+        setsProductReference: Bool,
         dependencySubIdentifiers: [Identifiers.Targets.SubIdentifier],
         buildConfigurationListIdentifier: String,
         buildPhaseIdentifiers: [String]
     ) -> Object {
         let productReference: String
-        if productType.setsProductReference {
+        if setsProductReference {
             productReference = #"""
 			productReference = \#(
     Identifiers.BuildFiles.id(subIdentifier: productSubIdentifier)

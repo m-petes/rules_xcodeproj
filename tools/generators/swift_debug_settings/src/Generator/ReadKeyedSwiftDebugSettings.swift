@@ -21,7 +21,7 @@ extension Generator {
             self.callable = callable
         }
 
-        ///
+        /// Reads the keyed Swift debug settings from disk.
         func callAsFunction(
             keysAndFiles: [(key: String, url: URL)]
         ) async throws -> [(key: String, settings: TargetSwiftDebugSettings)] {

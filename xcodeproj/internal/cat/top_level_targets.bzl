@@ -90,9 +90,9 @@ _TEST_HOST_PRODUCT_TYPES = {
     "w": None,  # com.apple.product-type.application.watchapp2
 }
 
-# FIXME: Exclude `avoid_deps`?
 def _calculate_mergeable_info(
         *,
+        avoid_deps,
         deps_infos,
         dynamic_frameworks,
         id,
@@ -102,12 +102,27 @@ def _calculate_mergeable_info(
     if target_inputs.srcs or target_inputs.non_arc_srcs:
         return None
 
+    avoid_ids = {
+        id: None
+        for id in depset(
+            transitive = [
+                dep[XcodeProjInfo].transitive_dependencies
+                for dep in avoid_deps
+            ],
+        ).to_list()
+    }
+
     mergeable_infos = depset(
         transitive = [
             info.mergeable_infos
             for info in deps_infos
         ],
     ).to_list()
+    mergeable_infos = [
+        info
+        for info in mergeable_infos
+        if info.id not in avoid_ids
+    ]
 
     if len(mergeable_infos) == 1:
         # We can always add merge targets of a single library dependency
@@ -837,6 +852,7 @@ def _process_focused_top_level_target(
     )
 
     mergeable_info = _calculate_mergeable_info(
+        avoid_deps = avoid_deps,
         deps_infos = deps_infos,
         dynamic_frameworks = linker_inputs._top_level_values.dynamic_frameworks,
         id = id,

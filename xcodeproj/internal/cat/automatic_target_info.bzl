@@ -43,6 +43,12 @@ def _get_target_type(*, target):
 
     return None
 
+def _has_values_in(attrs, *, attr):
+    for name in attrs:
+        if getattr(attr, name, None):
+            return True
+    return False
+
 def _is_test_target(target):
     """Returns whether the given target is for test purposes or not."""
     if AppleBundleInfo not in target:
@@ -108,8 +114,13 @@ _PLUGINS_XCODE_TARGETS = {
     "deps": _XCODE_TARGET_TYPES_COMPILE_AND_NONE,
     "plugins": _XCODE_TARGET_TYPES_COMPILE_AND_NONE,
 }
+_SWIFT_GRPC_LIBRARY_XCODE_TARGETS = {
+    "deps": _XCODE_TARGET_TYPES_COMPILE_AND_NONE,
+    "_proto_support": _XCODE_TARGET_TYPES_COMPILE,
+}
 _SWIFT_LIBRARY_XCODE_TARGETS = {
     "deps": _XCODE_TARGET_TYPES_COMPILE_AND_NONE,
+    "plugins": _XCODE_TARGET_TYPES_COMPILE_AND_NONE,
     "private_deps": _XCODE_TARGET_TYPES_COMPILE_AND_NONE,
 }
 _TEST_BUNDLE_XCODE_TARGETS = {
@@ -149,6 +160,7 @@ def calculate_automatic_target_info(ctx, build_mode, target):
     args = None
     bundle_id = None
     codesignopts = None
+    collect_uncategorized_files = False
     deps = _DEPS_ATTRS
     entitlements = None
     env = None
@@ -156,6 +168,7 @@ def calculate_automatic_target_info(ctx, build_mode, target):
     hdrs = EMPTY_LIST
     implementation_deps = EMPTY_LIST
     infoplists = EMPTY_LIST
+    is_supported = True
     is_top_level = False
     label = target.label
     launchdplists = EMPTY_LIST
@@ -163,21 +176,36 @@ def calculate_automatic_target_info(ctx, build_mode, target):
     non_arc_srcs = EMPTY_LIST
     pch = None
     provisioning_profile = None
-    collect_uncategorized_files = False
-    is_supported = True
 
     rule_kind = ctx.rule.kind
 
     if rule_kind == "cc_library":
         implementation_deps = _IMPLEMENTATION_DEPS_ATTRS
         xcode_targets = _CC_LIBRARY_XCODE_TARGETS
+
+        is_supported = (
+            bool(target.files) and
+            _has_values_in(_SRCS_ATTRS, attr = ctx.rule.attr)
+        )
+        collect_uncategorized_files = not is_supported
     elif rule_kind == "objc_library":
         implementation_deps = _IMPLEMENTATION_DEPS_ATTRS
         non_arc_srcs = _NON_ARC_SRCS_ATTRS
         pch = "pch"
         xcode_targets = _OBJC_LIBRARY_XCODE_TARGETS
+
+        is_supported = (
+            bool(target.files) and (
+                _has_values_in(_SRCS_ATTRS, attr = ctx.rule.attr) or
+                _has_values_in(_NON_ARC_SRCS_ATTRS, attr = ctx.rule.attr)
+            )
+        )
+        collect_uncategorized_files = not is_supported
     elif rule_kind == "swift_library":
         xcode_targets = _SWIFT_LIBRARY_XCODE_TARGETS
+    elif rule_kind == "swift_grpc_library":
+        srcs = EMPTY_LIST
+        xcode_targets = _SWIFT_GRPC_LIBRARY_XCODE_TARGETS
     elif rule_kind == "swift_proto_library":
         xcode_targets = _DEPS_XCODE_TARGETS
     elif (AppleResourceBundleInfo in target and
