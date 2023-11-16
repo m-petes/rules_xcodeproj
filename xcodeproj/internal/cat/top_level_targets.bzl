@@ -29,7 +29,7 @@ load(
     ":files.bzl",
     "join_paths_ignoring_empty",
 )
-load(":input_files.bzl", "input_files", bwx_ogroups = "bwx_output_groups")
+load(":input_files.bzl", "input_files")
 load(":linker_input_files.bzl", "linker_input_files")
 load(":opts.bzl", "opts")
 load(":output_files.bzl", "output_files", bwb_ogroups = "bwb_output_groups")
@@ -589,9 +589,13 @@ def process_top_level_target(
         if XcodeProjInfo in dep
     ]
 
-    compilation_providers = comp_providers.merge(
+    (
+        target_compilation_providers,
+        provider_compilation_providers,
+    ) = comp_providers.merge(
         apple_dynamic_framework_info = apple_dynamic_framework_info,
         cc_info = target[CcInfo] if CcInfo in target else None,
+        product_type = product_type,
         transitive_compilation_providers = [
             (info.xcode_target, info.compilation_providers)
             for info in deps_infos
@@ -642,11 +646,9 @@ def process_top_level_target(
             ctx = ctx,
             attrs = attrs,
             automatic_target_info = automatic_target_info,
-            avoid_compilation_providers_list = avoid_compilation_providers_list,
             avoid_deps = avoid_deps,
             bundle_info = bundle_info,
             build_mode = build_mode,
-            compilation_providers = compilation_providers,
             configuration = configuration,
             dependencies = dependencies,
             deps_infos = deps_infos,
@@ -655,8 +657,10 @@ def process_top_level_target(
             label = label,
             platform = platform,
             product_type = product_type,
+            provider_compilation_providers = provider_compilation_providers,
             remove_if_not_test_host = remove_if_not_test_host,
             target = target,
+            target_compilation_providers = target_compilation_providers,
             target_files = target_files,
             test_host = test_host,
             top_level_focused_deps = top_level_focused_deps,
@@ -670,13 +674,13 @@ def process_top_level_target(
             avoid_deps = avoid_deps,
             build_mode = build_mode,
             bundle_info = bundle_info,
-            compilation_providers = compilation_providers,
             dependencies = dependencies,
             deps_infos = deps_infos,
             is_bundle = bundle_info != None,
             label = label,
             platform = platform,
             product_type = product_type,
+            provider_compilation_providers = provider_compilation_providers,
             target = target,
             target_files = target_files,
             top_level_focused_deps = top_level_focused_deps,
@@ -726,11 +730,9 @@ def _process_focused_top_level_target(
         ctx,
         attrs,
         automatic_target_info,
-        avoid_compilation_providers_list,
         avoid_deps,
         build_mode,
         bundle_info,
-        compilation_providers,
         configuration,
         dependencies,
         deps_infos,
@@ -739,27 +741,21 @@ def _process_focused_top_level_target(
         label,
         platform,
         product_type,
+        provider_compilation_providers,
         remove_if_not_test_host,
         target,
+        target_compilation_providers,
         target_files,
         test_host,
         top_level_focused_deps,
         top_level_infos,
         transitive_dependencies,
         transitive_infos):
-    if avoid_compilation_providers_list:
-        avoid_compilation_providers = comp_providers.merge(
-            transitive_compilation_providers = avoid_compilation_providers_list,
-        )
-    else:
-        avoid_compilation_providers = None
-
     linker_inputs = linker_input_files.collect(
         target = target,
         automatic_target_info = automatic_target_info,
-        compilation_providers = compilation_providers,
+        compilation_providers = target_compilation_providers,
         is_top_level = True,
-        avoid_compilation_providers = avoid_compilation_providers,
     )
 
     module_name_attribute, module_name = get_product_module_name(
@@ -981,14 +977,13 @@ def _process_focused_top_level_target(
 
     swift_info = target[SwiftInfo] if SwiftInfo in target else None
 
-    bwx_output_groups = bwx_ogroups.collect(
-        build_mode = build_mode,
-        id = id,
-        target_inputs = target_inputs,
-        modulemaps = process_modulemaps(swift_info = swift_info),
-        params_files = params_files,
-        transitive_infos = transitive_infos,
-    )
+    if params_files:
+        compiling_files = memory_efficient_depset(
+            params_files,
+            transitive = [target_inputs.generated],
+        )
+    else:
+        compiling_files = target_inputs.generated
 
     if apple_common.AppleDebugOutputs in target:
         debug_outputs = target[apple_common.AppleDebugOutputs]
@@ -1016,7 +1011,7 @@ def _process_focused_top_level_target(
     )
 
     bwb_output_groups = bwb_ogroups.collect(
-        bwx_output_groups = bwx_output_groups,
+        compiling_files = compiling_files,
         metadata = bwb_output_groups_metadata,
         transitive_infos = transitive_infos,
     )
@@ -1051,8 +1046,7 @@ def _process_focused_top_level_target(
 
     return processed_target(
         bwb_output_groups = bwb_output_groups,
-        bwx_output_groups = bwx_output_groups,
-        compilation_providers = compilation_providers,
+        compilation_providers = provider_compilation_providers,
         dependencies = dependencies,
         extension_infoplists = extension_infoplists,
         framework_product_mappings = framework_product_mappings,
@@ -1096,13 +1090,13 @@ def _process_unfocused_top_level_target(
         avoid_deps,
         build_mode,
         bundle_info,
-        compilation_providers,
         dependencies,
         deps_infos,
         is_bundle,
         label,
         platform,
         product_type,
+        provider_compilation_providers,
         target,
         target_files,
         top_level_focused_deps,
@@ -1206,10 +1200,7 @@ def _process_unfocused_top_level_target(
         bwb_output_groups = bwb_ogroups.merge(
             transitive_infos = transitive_infos,
         ),
-        bwx_output_groups = bwx_ogroups.merge(
-            transitive_infos = transitive_infos,
-        ),
-        compilation_providers = compilation_providers,
+        compilation_providers = provider_compilation_providers,
         dependencies = dependencies,
         framework_product_mappings = framework_product_mappings,
         hosted_targets = None,

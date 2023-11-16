@@ -6,7 +6,6 @@ load(":providers.bzl", "target_type")
 def processed_target(
         *,
         bwb_output_groups,
-        bwx_output_groups,
         compilation_providers,
         dependencies,
         extension_infoplists = None,
@@ -29,7 +28,6 @@ def processed_target(
 
     Args:
         bwb_output_groups: A value as returned from `bwb_output_groups.collect`.
-        bwx_output_groups: A value as returned from `bwx_output_groups.collect`.
         compilation_providers: A value as returned from
             `compilation_providers.{collect,merge}`.
         dependencies: A `depset` of target ids of direct dependencies of this
@@ -71,7 +69,6 @@ def processed_target(
     """
     return struct(
         bwb_output_groups = bwb_output_groups,
-        bwx_output_groups = bwx_output_groups,
         compilation_providers = compilation_providers,
         dependencies = dependencies,
         extension_infoplists = extension_infoplists,

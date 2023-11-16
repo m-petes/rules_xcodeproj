@@ -341,16 +341,14 @@ def _merge_output_files(*, transitive_infos):
 
 def _collect_bwb_output_groups(
         *,
-        bwx_output_groups,
+        compiling_files,
         metadata,
         transitive_infos):
     compiled_and_generated_transitive = (
         metadata._compiled_and_generated_transitive
     )
     if compiled_and_generated_transitive:
-        compiled_and_generated_transitive.append(
-            bwx_output_groups.compiling_files,
-        )
+        compiled_and_generated_transitive.append(compiling_files)
 
         direct_group_list = metadata._direct_group_list + [
             (

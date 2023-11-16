@@ -63,7 +63,12 @@ attributes.
         "is_supported": """\
 Whether an Xcode target can be generated for this target. Even if this value is
 `False`, setting values for the other attributes can cause inputs to be
-collected and shown in the Xcode project.
+collected and shown in the Xcode project. This should be `True` if an Xcode
+target could be generated for a target, even if an Xcode target isn't desired.
+Use target focusing or `should_generate = False` to prevent an Xcode target from
+being generated. The distinction matters, since unsupported targets are
+processed differently from supported targets, which can have an effect on target
+merging.
 """,
         "is_top_level": """\
 FIXME
@@ -88,6 +93,10 @@ attribute.
         "provisioning_profile": """\
 An attribute name (or `None`) to collect `File`s from for the
 `provisioning_profile`-like attribute.
+""",
+        "should_generate": """\
+If `is_supported` is `True`, this determines whether an Xcode target should be
+generated for this target.
 """,
         "srcs": """\
 A sequence of attribute names to collect `File`s from for `srcs`-like
@@ -123,10 +132,6 @@ target ID (see `xcode_target.id`) of the target and `arg` values for the target
         "bwb_output_groups": """\
 A value returned from `bwb_output_groups.collect`/`bwb_output_groups.merge`,
 that contains information related to BwB mode output groups.
-""",
-        "bwx_output_groups": """\
-A value returned from `bwx_output_groups.collect`/`bwx_output_groups.merge`,
-that contains information related to BwX mode output groups.
 """,
         "compilation_providers": """\
 A value returned from `compilation_providers.{collect,merge}`.

@@ -6,6 +6,7 @@ load("//xcodeproj/internal:build_settings.bzl", "get_product_module_name")
 load("//xcodeproj/internal:configuration.bzl", "calculate_configuration")
 load(
     "//xcodeproj/internal:memory_efficiency.bzl",
+    "memory_efficient_depset",
     "EMPTY_DEPSET",
     "EMPTY_TUPLE",
 )
@@ -15,7 +16,7 @@ load(
     ":files.bzl",
     "join_paths_ignoring_empty",
 )
-load(":input_files.bzl", "input_files", bwx_ogroups = "bwx_output_groups")
+load(":input_files.bzl", "input_files")
 load(":linker_input_files.bzl", "linker_input_files")
 load(":opts.bzl", "opts")
 load(":output_files.bzl", "output_files", bwb_ogroups = "bwb_output_groups")
@@ -26,7 +27,6 @@ load(":product.bzl", "process_product")
 load(
     ":target_properties.bzl",
     "process_dependencies",
-    "process_modulemaps",
 )
 load(":xcode_targets.bzl", "xcode_targets")
 
@@ -70,14 +70,17 @@ def process_library_target(
     objc = target[apple_common.Objc] if apple_common.Objc in target else None
     swift_info = target[SwiftInfo] if SwiftInfo in target else None
 
-    compilation_providers = comp_providers.collect(
+    (
+        target_compilation_providers,
+        provider_compilation_providers,
+    ) = comp_providers.collect(
         cc_info = target[CcInfo],
         objc = objc,
     )
     linker_inputs = linker_input_files.collect(
         target = target,
         automatic_target_info = automatic_target_info,
-        compilation_providers = compilation_providers,
+        compilation_providers = target_compilation_providers,
     )
 
     platform = platforms.collect(ctx = ctx)
@@ -171,17 +174,16 @@ def process_library_target(
         order = "topological",
     )
 
-    bwx_output_groups = bwx_ogroups.collect(
-        build_mode = build_mode,
-        id = id,
-        target_inputs = target_inputs,
-        modulemaps = process_modulemaps(swift_info = swift_info),
-        params_files = params_files,
-        transitive_infos = transitive_infos,
-    )
+    if params_files:
+        compiling_files = memory_efficient_depset(
+            params_files,
+            transitive = [target_inputs.generated],
+        )
+    else:
+        compiling_files = target_inputs.generated
 
     bwb_output_groups = bwb_ogroups.collect(
-        bwx_output_groups = bwx_output_groups,
+        compiling_files = compiling_files,
         metadata = bwb_output_groups_metadata,
         transitive_infos = transitive_infos,
     )
@@ -248,8 +250,7 @@ def process_library_target(
 
     return processed_target(
         bwb_output_groups = bwb_output_groups,
-        bwx_output_groups = bwx_output_groups,
-        compilation_providers = compilation_providers,
+        compilation_providers = provider_compilation_providers,
         dependencies = dependencies,
         inputs = provider_inputs,
         mergeable_infos = mergeable_infos,

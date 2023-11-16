@@ -644,7 +644,6 @@ def _collect_input_files(
 def _collect_unsupported_input_files(
         *,
         ctx,
-        build_mode,
         target,
         attrs,
         automatic_target_info,
@@ -655,7 +654,6 @@ def _collect_unsupported_input_files(
 
     Args:
         ctx: The aspect context.
-        build_mode: See `xcodeproj.build_mode`.
         target: The `Target` to collect inputs from.
         attrs: `dir(ctx.rule.attr)` (as a performance optimization).
         automatic_target_info: The `XcodeProjAutomaticTargetProcessingInfo` for
@@ -897,165 +895,9 @@ def _merge_top_level_input_files(
         xccurrentversions = xccurrentversions,
     )
 
-# Output groups
-
-def _collect_bwx_output_groups(
-        *,
-        build_mode = None,
-        id,
-        modulemaps = [],
-        params_files = [],
-        target_inputs,
-        transitive_infos):
-    should_produce_output_groups = build_mode == "xcode"
-
-    if should_produce_output_groups:
-        if modulemaps:
-            modulemaps = [f for f in modulemaps if not f.is_source]
-            modulemaps_depset = memory_efficient_depset(modulemaps)
-        else:
-            modulemaps_depset = memory_efficient_depset(
-                transitive = [
-                    info.bwx_output_groups._modulemaps
-                    for info in transitive_infos
-                ],
-            )
-
-        # Purposeful flattening to work around large BEP issue.
-        # This is because we only get modulemaps already flattened. Ideally we
-        # would get a `depset` for the modulemaps, so they would be properly
-        # represented in the BEP.
-        modulemaps = modulemaps_depset.to_list()
-
-        compiling_files = memory_efficient_depset(
-            params_files + modulemaps,
-            transitive = [target_inputs.generated],
-        )
-
-        compiling_output_group_name = "xc {}".format(id)
-        linking_output_group_name = "xl {}".format(id)
-
-        direct_group_list = [
-            (compiling_output_group_name, compiling_files),
-            (linking_output_group_name, EMPTY_DEPSET),
-        ]
-    else:
-        direct_group_list = None
-        modulemaps_depset = EMPTY_DEPSET
-
-        if params_files:
-            compiling_files = memory_efficient_depset(
-                params_files,
-                transitive = [target_inputs.generated],
-            )
-        else:
-            compiling_files = target_inputs.generated
-
-    return struct(
-        _modulemaps = modulemaps_depset,
-        _output_group_list = memory_efficient_depset(
-            direct_group_list,
-            transitive = [
-                info.inputs._output_group_list
-                for info in transitive_infos
-            ],
-        ) if should_produce_output_groups else EMPTY_DEPSET,
-        compiling_files = compiling_files,
-    )
-
-def _merge_bwx_output_groups(*, transitive_infos):
-    """Creates merged BwX output groups.
-
-    Args:
-        transitive_infos: A `list` of `XcodeProjInfo`s for the transitive
-            dependencies of the current target.
-
-    Returns:
-        A value similar to the one returned from `bwx_output_groups.collect`.
-    """
-    return struct(
-        _modulemaps = memory_efficient_depset(
-            transitive = [
-                info.bwx_output_groups._modulemaps
-                for info in transitive_infos
-            ],
-        ),
-        _output_group_list = memory_efficient_depset(
-            transitive = [
-                info.bwx_output_groups._output_group_list
-                for info in transitive_infos
-            ],
-        ),
-    )
-
-def _process_output_group_files(
-        *,
-        files,
-        output_group_name,
-        additional_bwx_generated):
-    # `list` copy is needed for some reason to prevent depset from changing
-    # underneath us. Without this it's nondeterministic which files are in it.
-    generated_depsets = list(
-        additional_bwx_generated.get(output_group_name, []),
-    )
-    return memory_efficient_depset(
-        transitive = generated_depsets + [files],
-    )
-
-def _bwx_to_output_groups_fields(
-        *,
-        bwx_output_groups,
-        additional_bwx_generated = {},
-        index_import):
-    """Generates a dictionary to be splatted into `OutputGroupInfo`.
-
-    Args:
-        bwx_output_groups: A value returned from `bwx_output_groups.collect`.
-        additional_bwx_generated: A `dict` that maps the output group name of
-            targets to a `list` of `depset`s of `File`s that should be merged
-            into the output group map for that output group name.
-        index_import: A `File` for `index-import`.
-
-    Returns:
-        A `dict` where the keys are output group names and the values are
-        `depset` of `File`s.
-    """
-    output_groups = {
-        name: _process_output_group_files(
-            files = files,
-            output_group_name = name,
-            additional_bwx_generated = additional_bwx_generated,
-            index_import = index_import,
-        )
-        for name, files in bwx_output_groups._output_group_list.to_list()
-    }
-
-    output_groups["all_xc"] = memory_efficient_depset(
-        transitive = [
-            files
-            for name, files in output_groups.items()
-            if name.startswith("xc ")
-        ],
-    )
-    output_groups["all_xl"] = memory_efficient_depset(
-        transitive = [
-            files
-            for name, files in output_groups.items()
-            if name.startswith("xl ")
-        ],
-    )
-
-    return output_groups
-
 input_files = struct(
     collect = _collect_input_files,
     collect_unsupported = _collect_unsupported_input_files,
     merge = _merge_input_files,
     merge_top_level = _merge_top_level_input_files,
-)
-
-bwx_output_groups = struct(
-    collect = _collect_bwx_output_groups,
-    merge = _merge_bwx_output_groups,
-    to_output_groups_fields = _bwx_to_output_groups_fields,
 )

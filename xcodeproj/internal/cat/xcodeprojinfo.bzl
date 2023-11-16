@@ -14,7 +14,7 @@ load(
 )
 load(":automatic_target_info.bzl", "calculate_automatic_target_info")
 load(":compilation_providers.bzl", comp_providers = "compilation_providers")
-load(":input_files.bzl", "bwx_output_groups", "input_files")
+load(":input_files.bzl", "input_files")
 load(":library_targets.bzl", "process_library_target")
 load(":output_files.bzl", "bwb_output_groups", "output_files")
 load(":processed_target.bzl", "processed_target")
@@ -119,7 +119,6 @@ def _target_info_fields(
         *,
         args,
         bwb_output_groups,
-        bwx_output_groups,
         compilation_providers,
         dependencies,
         env,
@@ -148,7 +147,6 @@ def _target_info_fields(
     Args:
         args: Maps to the `XcodeProjInfo.args` field.
         bwb_output_groups: Maps to the `XcodeProjInfo.bwb_output_groups` field.
-        bwx_output_groups: Maps to the `XcodeProjInfo.bwx_output_groups` field.
         compilation_providers: Maps to the
             `XcodeProjInfo.compilation_providers` field.
         dependencies: Maps to the `XcodeProjInfo.dependencies` field.
@@ -185,7 +183,6 @@ def _target_info_fields(
 
         *   `args`
         *   `bwb_output_groups`
-        *   `bwx_output_groups`
         *   `compilation_providers`
         *   `dependencies`
         *   `env`
@@ -211,7 +208,6 @@ def _target_info_fields(
     return {
         "args": args,
         "bwb_output_groups": bwb_output_groups,
-        "bwx_output_groups": bwx_output_groups,
         "compilation_providers": compilation_providers,
         "dependencies": dependencies,
         "env": env,
@@ -315,9 +311,6 @@ def _skip_target(
             ],
         ),
         bwb_output_groups = bwb_output_groups.merge(
-            transitive_infos = valid_transitive_infos,
-        ),
-        bwx_output_groups = bwx_output_groups.merge(
             transitive_infos = valid_transitive_infos,
         ),
         compilation_providers = compilation_providers,
@@ -456,10 +449,13 @@ def _create_xcodeprojinfo(
         ))
     ]
 
-    generate_target = _should_generate_target(
-        focused_labels = ctx.attr._focused_labels,
-        label = automatic_target_info.label,
-        unfocused_labels = ctx.attr._unfocused_labels,
+    generate_target = (
+        automatic_target_info.should_generate and
+        _is_focused(
+            focused_labels = ctx.attr._focused_labels,
+            label = automatic_target_info.label,
+            unfocused_labels = ctx.attr._unfocused_labels,
+        )
     )
 
     if not automatic_target_info.is_supported:
@@ -516,7 +512,6 @@ def _create_xcodeprojinfo(
             ],
         ),
         bwb_output_groups = processed_target.bwb_output_groups,
-        bwx_output_groups = processed_target.bwx_output_groups,
         compilation_providers = processed_target.compilation_providers,
         focused_deps = focused_deps,
         dependencies = processed_target.dependencies,
@@ -607,7 +602,7 @@ def _should_create_provider(*, ctx, target):
         return False
     return True
 
-def _should_generate_target(*, focused_labels, label, unfocused_labels):
+def _is_focused(*, focused_labels, label, unfocused_labels):
     if not focused_labels and not unfocused_labels:
         return True
 

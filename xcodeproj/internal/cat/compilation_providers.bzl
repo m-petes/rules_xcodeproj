@@ -9,6 +9,8 @@ load(
 
 _objc_has_linking_info = not bazel_features.cc.objc_linking_info_migrated
 
+_FRAMEWORK_PRODUCT_TYPE = "f"  # com.apple.product-type.framework
+
 def _collect_compilation_providers(*, cc_info, objc):
     """Collects compilation providers for a non top-level target.
 
@@ -17,25 +19,34 @@ def _collect_compilation_providers(*, cc_info, objc):
         objc: The `ObjcProvider` of the target, or `None`.
 
     Returns:
-        An opaque `struct` containing the linker input files for a target. The
-        `struct` should be passed to functions in the `collect_providers` module
-        to retrieve its contents.
+        A `tuple` containing two values:
+
+        *   A `struct` containing information to be consumed by the
+            `linker_input_files` module.
+        *   An opaque `struct` to be passed be set in
+            `XcodeProjInfo.compilation_providers`.
     """
     if not _objc_has_linking_info:
         objc = None
 
-    return struct(
-        _framework_files = EMPTY_DEPSET,
-        _propagated_framework_files = EMPTY_DEPSET,
-        _propagated_objc = objc,
-        cc_info = cc_info,
-        objc = objc,
+    return (
+        struct(
+            cc_info = cc_info,
+            framework_files = EMPTY_DEPSET,
+            objc = objc,
+        ),
+        struct(
+            _propagated_framework_files = EMPTY_DEPSET,
+            _propagated_objc = objc,
+            _cc_info = cc_info,
+        ),
     )
 
 def _merge_compilation_providers(
         *,
         apple_dynamic_framework_info = None,
         cc_info = None,
+        product_type = None,
         transitive_compilation_providers):
     """Merges compilation providers from the deps of a target.
 
@@ -43,6 +54,7 @@ def _merge_compilation_providers(
         apple_dynamic_framework_info: The
             `apple_common.AppleDynamicFrameworkInfo` of the target, or `None`.
         cc_info: The `CcInfo` of the target, or `None`.
+        product_type: A value as returned by `_calculate_product_type`.
         transitive_compilation_providers: A `list` of
             `(xcode_target, XcodeProjInfo)` tuples of transitive dependencies
             that should have compilation providers merged.
@@ -76,16 +88,16 @@ def _merge_compilation_providers(
     merged_cc_info = cc_common.merge_cc_infos(
         direct_cc_infos = [cc_info] if cc_info else [],
         cc_infos = [
-            providers.cc_info
+            providers._cc_info
             for _, providers in transitive_compilation_providers
-            if providers.cc_info
+            if providers._cc_info
         ],
     )
 
     objc = None
     if _objc_has_linking_info:
         maybe_objc_providers = [
-            _to_objc(providers._propagated_objc, providers.cc_info)
+            _to_objc(providers._propagated_objc, providers._cc_info)
             for _, providers in transitive_compilation_providers
         ]
         objc_providers = [objc for objc in maybe_objc_providers if objc]
@@ -98,12 +110,19 @@ def _merge_compilation_providers(
     else:
         propagated_objc = None
 
-    return struct(
-        _framework_files = framework_files,
-        _propagated_framework_files = propagated_framework_files,
-        _propagated_objc = propagated_objc,
-        cc_info = merged_cc_info,
-        objc = objc,
+    propagate_providers = product_type == _FRAMEWORK_PRODUCT_TYPE
+
+    return (
+        struct(
+            cc_info = merged_cc_info,
+            framework_files = framework_files,
+            objc = objc,
+        ),
+        struct(
+            _propagated_framework_files = propagated_framework_files,
+            _propagated_objc = propagated_objc if propagate_providers else None,
+            _cc_info = merged_cc_info if propagate_providers else None,
+        ),
     )
 
 def _to_objc(objc, cc_info):

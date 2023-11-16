@@ -8,7 +8,7 @@ load("//xcodeproj/internal:configuration.bzl", "calculate_configuration")
 load("//xcodeproj/internal:memory_efficiency.bzl", "memory_efficient_depset")
 load("//xcodeproj/internal:target_id.bzl", "get_id")
 load(":compilation_providers.bzl", comp_providers = "compilation_providers")
-load(":input_files.bzl", "input_files", bwx_ogroups = "bwx_output_groups")
+load(":input_files.bzl", "input_files")
 load(":output_files.bzl", "output_files", bwb_ogroups = "bwb_output_groups")
 load(":processed_target.bzl", "processed_target")
 load(
@@ -73,21 +73,22 @@ def process_unsupported_target(
         is_resource_bundle = False
         resource_bundle_ids = None
 
+    (
+        _,
+        provider_compilation_providers,
+    ) = comp_providers.collect(
+        cc_info = target[CcInfo] if CcInfo in target else None,
+        objc = target[apple_common.Objc] if apple_common.Objc in target else None,
+    )
+
     return processed_target(
         bwb_output_groups = bwb_ogroups.merge(
             transitive_infos = transitive_infos,
         ),
-        bwx_output_groups = bwx_ogroups.merge(
-            transitive_infos = transitive_infos,
-        ),
-        compilation_providers = comp_providers.collect(
-            cc_info = target[CcInfo] if CcInfo in target else None,
-            objc = target[apple_common.Objc] if apple_common.Objc in target else None,
-        ),
+        compilation_providers = provider_compilation_providers,
         dependencies = dependencies,
         inputs = input_files.collect_unsupported(
             ctx = ctx,
-            build_mode = build_mode,
             target = target,
             attrs = attrs,
             automatic_target_info = automatic_target_info,
