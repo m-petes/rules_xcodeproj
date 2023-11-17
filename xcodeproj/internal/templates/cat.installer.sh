@@ -168,7 +168,10 @@ then
 fi
 
 # Copy over xcschememanagement.plist
-readonly user_xcschmes="$dest/xcuserdata/$USER.xcuserdatad/xcschemes"
+username="$(/usr/bin/id -un)"
+readonly username
+
+readonly user_xcschmes="$dest/xcuserdata/$username.xcuserdatad/xcschemes"
 readonly xcschememanagement="$user_xcschmes/xcschememanagement.plist"
 mkdir -p "$user_xcschmes"
 cp "$src_xcschememanagement" "$xcschememanagement"

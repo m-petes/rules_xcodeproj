@@ -449,8 +449,8 @@ def _write_consolidation_map_targets(
         if not unit_test_host_target:
             fail(
                 """\
-    Target ID for unit test host '{}' not found in xcode_targets
-    """.format(unit_test_host),
+Target ID for unit test host '{}' not found in xcode_targets
+""".format(unit_test_host),
             )
         unit_test_hosts_args.add(id)
         unit_test_hosts_args.add(unit_test_host_target.package_bin_dir)
@@ -571,9 +571,34 @@ cat "$@" > {output}
 
     return output
 
+def _write_xcfilelist(*, actions, args, output):
+    args.set_param_file_format("multiline")
+    args.use_param_file("@%s")
+
+    actions.run_shell(
+        arguments = [args],
+        command = """\
+set -euo pipefail
+
+if [[ $# -eq 1 && "${{1:0:1}}" == "@" ]]; then
+    /usr/bin/sort -u "${{1:1}}"
+else
+    printf "%s\n" "$@" | /usr/bin/sort -u
+fi > "{output}"
+""".format(output = output.path),
+        outputs = [output],
+        mnemonic = "WriteXCFileList",
+        progress_message = "Generating %{output}",
+        execution_requirements = {
+            # Command is faster than a cache look up
+            "no-cache": "1",
+            # Command is faster than a remote execution
+            "no-remote": "1",
+        },
+    )
+
 def _write_xcfilelists(*, actions, files, file_paths, generator_name):
     external_args = actions.args()
-    external_args.set_param_file_format("multiline")
     external_args.add_all(
         files,
         map_each = _filter_external_file,
@@ -582,15 +607,19 @@ def _write_xcfilelists(*, actions, files, file_paths, generator_name):
     external_args.add_all(
         file_paths,
         map_each = _filter_external_file_path,
+        uniquify = True,
     )
 
     external = actions.declare_file(
         "{}-xcfilelists/external.xcfilelist".format(generator_name),
     )
-    actions.write(external, external_args)
+    _write_xcfilelist(
+        actions = actions,
+        args = external_args,
+        output = external,
+    )
 
     generated_args = actions.args()
-    generated_args.set_param_file_format("multiline")
     generated_args.add_all(
         files,
         map_each = _filter_generated_file,
@@ -599,12 +628,17 @@ def _write_xcfilelists(*, actions, files, file_paths, generator_name):
     generated_args.add_all(
         file_paths,
         map_each = _filter_generated_file_path,
+        uniquify = True,
     )
 
     generated = actions.declare_file(
         "{}-xcfilelists/generated.xcfilelist".format(generator_name),
     )
-    actions.write(generated, generated_args)
+    _write_xcfilelist(
+        actions = actions,
+        args = generated_args,
+        output = generated,
+    )
 
     return [external, generated]
 
