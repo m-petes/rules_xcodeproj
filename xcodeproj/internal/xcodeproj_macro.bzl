@@ -467,6 +467,14 @@ configuration alphabetically ("{default}").
     schemes_json = None
     xcschemes_json = "[]"
     if generation_mode == "incremental":
+        if build_mode == "xcode":
+            fail("""
+{target}: `xcodeproj.generation_mode` = "incremental" is does not work with \
+`xcodeproj.build_mode` = "xcode".
+""".format(
+                target = bazel_labels.normalize_string(name),
+            ))
+
         xcschemes = xcschemes or []
         if type(xcschemes) != "list":
             fail("`xcodeproj.xcschemes` must be a list.")

@@ -129,10 +129,6 @@ A `depset` of `struct`s with `id` and `arg` fields. The `id` field is the
 target ID (see `xcode_target.id`) of the target and `arg` values for the target
 (if applicable).
 """,
-        "bwb_output_groups": """\
-A value returned from `bwb_output_groups.collect`/`bwb_output_groups.merge`,
-that contains information related to BwB mode output groups.
-""",
         "compilation_providers": """\
 A value returned from `compilation_providers.{collect,merge}`.
 """,
@@ -150,6 +146,7 @@ A `depset` of `struct`s with 'id' and 'infoplist' fields. The 'id' field is the
 target ID (see `xcode_target.id`) of the application extension target. The
 'infoplist' field is a `File` for the Info.plist for the target.
 """,
+        "focused_deps": "FIXME",
         "framework_product_mappings": """\
 A `depset` of `(linker_path, product_path)` `tuple`s.
 `linker_path` is the `.framework/Executable` path used when linking to a
@@ -158,7 +155,6 @@ particular, `product_path` can have a fully fleshed out framework, including
 resources, while `linker_path` will most likely only have a symlink to a
 `.dylib` in it.
 """,
-        "focused_deps": "FIXME",
         "hosted_targets": """\
 A `depset` of `struct`s with 'host' and 'hosted' fields. The `host` field is the
 target ID (see `xcode_target.id`) of the hosting target. The `hosted` field is
@@ -202,6 +198,10 @@ A `depset` of `tuple`s mapping target id to bundle id.
         "swift_debug_settings": """\
 For top-level targets, this is a `depset` of swift_debug_settings `File`s,
 produced by `pbxproj_partials.write_target_build_settings`.
+""",
+        "target_output_groups": """\
+A value returned from `output_groups.collect`/`output_groups.merge`, that
+contains information related to BwB mode output groups.
 """,
         "target_type": """\
 A string that categorizes the type of the current target. This will be one of

@@ -2,6 +2,7 @@
 
 load(
     "//xcodeproj/internal:memory_efficiency.bzl",
+    "EMPTY_LIST",
     "EMPTY_STRING",
     "FALSE_ARG",
     "TRUE_ARG",
@@ -15,7 +16,11 @@ def _make_arg_env(value, *, enabled = TRUE_ARG):
         value = value,
     )
 
-def _make_build_target(id, *, post_actions = [], pre_actions = []):
+def _make_build_target(
+        id,
+        *,
+        post_actions = EMPTY_LIST,
+        pre_actions = EMPTY_LIST):
     return struct(
         id = id,
         post_actions = post_actions,
@@ -37,8 +42,8 @@ def _make_launch_target(
         id = EMPTY_STRING,
         *,
         extension_host = EMPTY_STRING,
-        post_actions = [],
-        pre_actions = [],
+        post_actions = EMPTY_LIST,
+        pre_actions = EMPTY_LIST,
         working_directory = EMPTY_STRING):
     return struct(
         extension_host = extension_host,
@@ -64,7 +69,7 @@ def _make_pre_post_action(
 def _make_profile(
         *,
         args = None,
-        build_targets = [],
+        build_targets = EMPTY_LIST,
         env = None,
         env_include_defaults = FALSE_ARG,
         launch_target = _make_launch_target(),
@@ -83,7 +88,7 @@ def _make_profile(
 def _make_run(
         *,
         args = None,
-        build_targets = [],
+        build_targets = EMPTY_LIST,
         diagnostics = _make_diagnostics(),
         env = None,
         env_include_defaults = TRUE_ARG,
@@ -102,11 +107,11 @@ def _make_run(
 def _make_test(
         *,
         args = None,
-        build_targets = [],
+        build_targets = EMPTY_LIST,
         diagnostics = _make_diagnostics(),
         env = None,
         env_include_defaults = FALSE_ARG,
-        test_targets = [],
+        test_targets = EMPTY_LIST,
         use_run_args_and_env = TRUE_ARG,
         xcode_configuration = EMPTY_STRING):
     return struct(
@@ -124,8 +129,8 @@ def _make_test_target(
         id,
         *,
         enabled = TRUE_ARG,
-        post_actions = [],
-        pre_actions = []):
+        post_actions = EMPTY_LIST,
+        pre_actions = EMPTY_LIST):
     return struct(
         enabled = enabled,
         id = id,
@@ -174,27 +179,27 @@ def _build_target_infos_from_dict(
         return [
             _make_build_target(
                 id = _get_top_level_id(
+                    label = build_target,
                     scheme_name = scheme_name,
                     target_environment = None,
                     top_level_deps = top_level_deps,
-                    top_level_label = build_target,
                     xcode_configuration = xcode_configuration,
                 ),
             ),
         ]
 
-    target_ids = _get_target_ids(
+    deps_for_top_level_target = _get_deps_for_top_level_target(
+        label = build_target["label"],
         scheme_name = scheme_name,
         target_environment = build_target["target_environment"],
         top_level_deps = top_level_deps,
-        top_level_label = build_target["label"],
         xcode_configuration = xcode_configuration,
     )
 
     if build_target["include"]:
         build_targets = [
             _make_build_target(
-                id = target_ids.id,
+                id = deps_for_top_level_target.id,
                 post_actions = _pre_post_action_info_from_dicts(
                     build_target["post_actions"],
                 ),
@@ -210,7 +215,7 @@ def _build_target_infos_from_dict(
         _library_target_info_from_dict(
             library_target,
             scheme_name = scheme_name,
-            target_ids = target_ids.deps,
+            target_ids = deps_for_top_level_target.deps,
         )
         for library_target in build_target["library_targets"]
     ])
@@ -244,7 +249,7 @@ def _get_library_target_id(label, *, scheme_name, target_ids):
             """\
 Unknown library target in `xcscheme` "{scheme}": {label}
 
-Is '{label}' an `alias` target? Only actual target labels are support in \
+Is '{label}' an `alias` target? Only actual target labels are supported in \
 `xcscheme` definitions. Check that '{label}' is spelled correctly, and if it \
 is, make sure it's a transitive dependency of a top-level target in the \
 `xcodeproj.top_level_targets` attribute.
@@ -253,12 +258,12 @@ is, make sure it's a transitive dependency of a top-level target in the \
 
     return target_id
 
-def _get_target_ids(
+def _get_deps_for_top_level_target(
         *,
         scheme_name,
         target_environment,
         top_level_deps,
-        top_level_label,
+        label,
         xcode_configuration):
     if not target_environment:
         if "simulator" in top_level_deps:
@@ -281,35 +286,35 @@ Unknown Xcode configuration in `xcscheme` "{scheme}": {config}
 """.format(config = xcode_configuration, scheme = scheme_name),
         )
 
-    target_ids = target_ids_by_label.get(top_level_label)
+    target_ids = target_ids_by_label.get(label)
     if not target_ids:
         fail(
             """\
 Unknown top-level target in `xcscheme` "{scheme}": {label}
 
-Is '{label}' an `alias` target? Only actual target labels are support in \
+Is '{label}' an `alias` target? Only actual target labels are supported in \
 `xcscheme` definitions. Check that '{label}' is spelled correctly, and if it \
 is, make sure it's in the `xcodeproj.top_level_targets` attribute.
-""".format(label = top_level_label, scheme = scheme_name),
+""".format(label = label, scheme = scheme_name),
         )
 
     return target_ids
 
 def _get_top_level_id(
         *,
+        label,
         scheme_name,
         target_environment,
         top_level_deps,
-        top_level_label,
         xcode_configuration):
-    target_ids = _get_target_ids(
+    deps_for_top_level_target = _get_deps_for_top_level_target(
+        label = label,
         scheme_name = scheme_name,
         target_environment = target_environment,
         top_level_deps = top_level_deps,
-        top_level_label = top_level_label,
         xcode_configuration = xcode_configuration,
     )
-    return target_ids.id
+    return deps_for_top_level_target.id
 
 def _launch_target_info_from_dict(
         launch_target,
@@ -320,7 +325,7 @@ def _launch_target_info_from_dict(
     if not launch_target:
         return (
             _make_launch_target(),
-            [],
+            EMPTY_LIST,
         )
 
     if type(launch_target) == "string":
@@ -328,33 +333,33 @@ def _launch_target_info_from_dict(
             _make_launch_target(
                 extension_host = EMPTY_STRING,
                 id = _get_top_level_id(
+                    label = launch_target,
                     target_environment = None,
                     top_level_deps = top_level_deps,
-                    top_level_label = launch_target,
                     xcode_configuration = xcode_configuration,
                 ),
-                post_actions = [],
-                pre_actions = [],
+                post_actions = EMPTY_LIST,
+                pre_actions = EMPTY_LIST,
                 working_directory = EMPTY_STRING,
             ),
-            [],
+            EMPTY_LIST,
         )
 
-    target_ids = _get_target_ids(
+    deps_for_top_level_target = _get_deps_for_top_level_target(
+        label = launch_target["label"],
         scheme_name = scheme_name,
         target_environment = launch_target["target_environment"],
         top_level_deps = top_level_deps,
-        top_level_label = launch_target["label"],
         xcode_configuration = xcode_configuration,
     )
 
     extension_host_label = launch_target["extension_host"]
     if extension_host_label:
         extension_host = _get_top_level_id(
+            label = extension_host_label,
             scheme_name = scheme_name,
             target_environment = launch_target["target_environment"],
             top_level_deps = top_level_deps,
-            top_level_label = extension_host_label,
             xcode_configuration = xcode_configuration,
         )
     else:
@@ -362,7 +367,7 @@ def _launch_target_info_from_dict(
 
     launch_target_info = _make_launch_target(
         extension_host = extension_host,
-        id = target_ids.id,
+        id = deps_for_top_level_target.id,
         post_actions = _pre_post_action_info_from_dicts(
             launch_target["post_actions"],
         ),
@@ -376,7 +381,7 @@ def _launch_target_info_from_dict(
         _library_target_info_from_dict(
             library_target,
             scheme_name = scheme_name,
-            target_ids = target_ids.deps,
+            target_ids = deps_for_top_level_target.deps,
         )
         for library_target in launch_target["library_targets"]
     ]
@@ -579,29 +584,29 @@ def _test_target_info_from_dict(
             _make_test_target(
                 enabled = TRUE_ARG,
                 id = _get_top_level_id(
+                    label = test_target,
                     scheme_name = scheme_name,
                     target_environment = None,
                     top_level_deps = top_level_deps,
-                    top_level_label = test_target,
                     xcode_configuration = xcode_configuration,
                 ),
-                post_actions = [],
-                pre_actions = [],
+                post_actions = EMPTY_LIST,
+                pre_actions = EMPTY_LIST,
             ),
-            [],
+            EMPTY_LIST,
         )
 
-    target_ids = _get_target_ids(
+    deps_for_top_level_target = _get_deps_for_top_level_target(
+        label = test_target["label"],
         scheme_name = scheme_name,
         target_environment = test_target["target_environment"],
         top_level_deps = top_level_deps,
-        top_level_label = test_target["label"],
         xcode_configuration = xcode_configuration,
     )
 
     test_target_info = _make_test_target(
         enabled = test_target["enabled"],
-        id = target_ids.id,
+        id = deps_for_top_level_target.id,
         post_actions = _pre_post_action_info_from_dicts(
             test_target["post_actions"],
         ),
@@ -614,7 +619,7 @@ def _test_target_info_from_dict(
         _library_target_info_from_dict(
             library_target,
             scheme_name = scheme_name,
-            target_ids = target_ids.deps,
+            target_ids = deps_for_top_level_target.deps,
         )
         for library_target in test_target["library_targets"]
     ]

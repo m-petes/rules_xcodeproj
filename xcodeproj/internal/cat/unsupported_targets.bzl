@@ -9,7 +9,7 @@ load("//xcodeproj/internal:memory_efficiency.bzl", "memory_efficient_depset")
 load("//xcodeproj/internal:target_id.bzl", "get_id")
 load(":compilation_providers.bzl", comp_providers = "compilation_providers")
 load(":input_files.bzl", "input_files")
-load(":output_files.bzl", "output_files", bwb_ogroups = "bwb_output_groups")
+load(":output_files.bzl", "output_files", "output_groups")
 load(":processed_target.bzl", "processed_target")
 load(
     ":target_properties.bzl",
@@ -82,9 +82,6 @@ def process_unsupported_target(
     )
 
     return processed_target(
-        bwb_output_groups = bwb_ogroups.merge(
-            transitive_infos = transitive_infos,
-        ),
         compilation_providers = provider_compilation_providers,
         dependencies = dependencies,
         inputs = input_files.collect_unsupported(
@@ -110,6 +107,9 @@ def process_unsupported_target(
                 for info in transitive_infos
             ],
             order = "topological",
+        ),
+        target_output_groups = output_groups.merge(
+            transitive_infos = transitive_infos,
         ),
         top_level_swift_debug_settings = memory_efficient_depset(
             transitive = [

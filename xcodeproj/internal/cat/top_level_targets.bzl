@@ -21,29 +21,24 @@ load(
     "EMPTY_DEPSET",
     "EMPTY_LIST",
     "EMPTY_STRING",
+    "FALSE_ARG",
+    "TRUE_ARG",
     "memory_efficient_depset",
 )
+load("//xcodeproj/internal:platforms.bzl", "platforms")
 load("//xcodeproj/internal:target_id.bzl", "get_id")
-load(":compilation_providers.bzl", comp_providers = "compilation_providers")
-load(
-    ":files.bzl",
-    "join_paths_ignoring_empty",
-)
+load(":compilation_providers.bzl", "compilation_providers")
+load(":files.bzl", "join_paths_ignoring_empty")
 load(":input_files.bzl", "input_files")
 load(":linker_input_files.bzl", "linker_input_files")
 load(":opts.bzl", "opts")
-load(":output_files.bzl", "output_files", bwb_ogroups = "bwb_output_groups")
+load(":output_files.bzl", "output_files", "output_groups")
 load(":pbxproj_partials.bzl", "pbxproj_partials")
-load("//xcodeproj/internal:platforms.bzl", "platforms")
 load(":processed_target.bzl", "processed_target")
 load(":product.bzl", "PRODUCT_TYPE_ENCODED", "process_product")
 load(":providers.bzl", "XcodeProjInfo")
 load(":provisioning_profiles.bzl", "provisioning_profiles")
-load(
-    ":target_properties.bzl",
-    "process_dependencies",
-    "process_modulemaps",
-)
+load(":target_properties.bzl", "process_dependencies")
 load(":xcode_targets.bzl", "xcode_targets")
 
 _FRAMEWORK_PRODUCT_TYPE = "f"  # com.apple.product-type.framework
@@ -89,6 +84,26 @@ _TEST_HOST_PRODUCT_TYPES = {
     "t": None,  # com.apple.product-type.tv-app-extension
     "w": None,  # com.apple.product-type.application.watchapp2
 }
+
+def _cc_mergeable_info(*, id, mergeable_info):
+    return struct(
+        compile_target_ids = mergeable_info.id,
+        conly_args = mergeable_info.params.conly_args,
+        cxx_args = mergeable_info.params.cxx_args,
+        extra_file_paths = mergeable_info.inputs.extra_file_paths,
+        extra_files = mergeable_info.inputs.extra_files,
+        indexstores = mergeable_info.indexstores,
+        ids = [(id, (mergeable_info.id,))],
+        module_name = mergeable_info.module_name,
+        non_arc_srcs = mergeable_info.inputs.non_arc_srcs,
+        package_bin_dir = EMPTY_STRING,
+        previews_dynamic_frameworks = EMPTY_LIST,
+        previews_include_path = EMPTY_STRING,
+        product_files = (mergeable_info.product_file,),
+        srcs = mergeable_info.inputs.srcs,
+        swift_args = EMPTY_LIST,
+        swift_debug_settings_to_merge = mergeable_info.swift_debug_settings,
+    )
 
 def _calculate_mergeable_info(
         *,
@@ -268,25 +283,77 @@ def _compute_enabled_features(*, requested_features, unsupported_features):
     }
     return enabled_features
 
-def _cc_mergeable_info(*, id, mergeable_info):
-    return struct(
-        compile_target_ids = mergeable_info.id,
-        conly_args = mergeable_info.params.conly_args,
-        cxx_args = mergeable_info.params.cxx_args,
-        extra_file_paths = mergeable_info.inputs.extra_file_paths,
-        extra_files = mergeable_info.inputs.extra_files,
-        indexstores = mergeable_info.indexstores,
-        ids = [(id, (mergeable_info.id,))],
-        module_name = mergeable_info.module_name,
-        non_arc_srcs = mergeable_info.inputs.non_arc_srcs,
-        package_bin_dir = EMPTY_STRING,
-        previews_dynamic_frameworks = EMPTY_LIST,
-        previews_include_path = EMPTY_STRING,
-        product_files = (mergeable_info.product_file,),
-        srcs = mergeable_info.inputs.srcs,
-        swift_args = EMPTY_LIST,
-        swift_debug_settings_to_merge = mergeable_info.swift_debug_settings,
+def _create_link_params(
+        *,
+        actions,
+        label,
+        linker_inputs,
+        merged_product_files,
+        product,
+        tool):
+    if not linker_inputs:
+        return None
+
+    top_level_values = linker_inputs._top_level_values
+    if not top_level_values:
+        return None
+
+    link_args = top_level_values.link_args
+
+    if not link_args:
+        return None
+
+    target_name = label.name
+
+    if merged_product_files:
+        self_product_paths = [
+            file.path
+            for file in merged_product_files
+            if file
+        ]
+    else:
+        # Handle `{cc,swift}_{binary,test}` with `srcs` case
+        self_product_paths = [
+            paths.join(
+                product.package_dir,
+                "lib{}.lo".format(target_name),
+            ),
+        ]
+
+    generated_product_paths_file = actions.declare_file(
+        "{}.rules_xcodeproj.generated_product_paths_file.json".format(
+            target_name,
+        ),
     )
+    actions.write(
+        output = generated_product_paths_file,
+        content = json.encode(self_product_paths),
+    )
+
+    is_framework = product.type == "com.apple.product-type.framework"
+
+    link_params = actions.declare_file(
+        "{}.rules_xcodeproj.link.params".format(target_name),
+    )
+
+    args = actions.args()
+    args.add(link_params)
+    args.add(generated_product_paths_file)
+    args.add(TRUE_ARG if is_framework else FALSE_ARG)
+
+    actions.run(
+        executable = tool,
+        arguments = [args] + link_args,
+        mnemonic = "ProcessLinkParams",
+        progress_message = "Generating %{output}",
+        inputs = (
+            [generated_product_paths_file] +
+            list(top_level_values.link_args_inputs)
+        ),
+        outputs = [link_params],
+    )
+
+    return link_params
 
 def _lldb_context_key(*, platform, product):
     fp = product.file_path
@@ -592,7 +659,7 @@ def process_top_level_target(
     (
         target_compilation_providers,
         provider_compilation_providers,
-    ) = comp_providers.merge(
+    ) = compilation_providers.merge(
         apple_dynamic_framework_info = apple_dynamic_framework_info,
         cc_info = target[CcInfo] if CcInfo in target else None,
         product_type = product_type,
@@ -805,10 +872,6 @@ def _process_focused_top_level_target(
         ctx = ctx,
     )
 
-    additional_files = []
-    if infoplist:
-        additional_files.append(infoplist)
-
     infoplists_attrs = automatic_target_info.infoplists
     if (infoplists_attrs and bundle_info and
         bundle_info.bundle_extension == ".appex"):
@@ -842,7 +905,7 @@ def _process_focused_top_level_target(
         product = product,
         linker_inputs = linker_inputs,
         automatic_target_info = automatic_target_info,
-        additional_files = additional_files,
+        infoplist = infoplist,
         transitive_infos = transitive_infos,
         avoid_deps = avoid_deps,
     )
@@ -990,17 +1053,31 @@ def _process_focused_top_level_target(
     else:
         debug_outputs = None
 
+    actions = ctx.actions
+
+    link_params = _create_link_params(
+        actions = actions,
+        label = label,
+        tool = ctx.executable._link_params_processor,
+        linker_inputs = linker_inputs,
+        merged_product_files = (
+            mergeable_info.product_files if mergeable_info else None
+        ),
+        product = product,
+    )
+
     (
         target_outputs,
         provider_outputs,
-        bwb_output_groups_metadata,
+        target_output_groups_metadata,
     ) = output_files.collect(
-        actions = ctx.actions,
+        actions = actions,
         copy_product_transitively = True,
         debug_outputs = debug_outputs,
         id = id,
         indexstore_overrides = indexstore_overrides,
         infoplist = infoplist,
+        link_params = link_params,
         name = label.name,
         output_group_info = (
             target[OutputGroupInfo] if OutputGroupInfo in target else None
@@ -1010,9 +1087,9 @@ def _process_focused_top_level_target(
         transitive_infos = transitive_infos,
     )
 
-    bwb_output_groups = bwb_ogroups.collect(
+    target_output_groups = output_groups.collect(
         compiling_files = compiling_files,
-        metadata = bwb_output_groups_metadata,
+        metadata = target_output_groups_metadata,
         transitive_infos = transitive_infos,
     )
 
@@ -1045,7 +1122,6 @@ def _process_focused_top_level_target(
     ]
 
     return processed_target(
-        bwb_output_groups = bwb_output_groups,
         compilation_providers = provider_compilation_providers,
         dependencies = dependencies,
         extension_infoplists = extension_infoplists,
@@ -1058,6 +1134,7 @@ def _process_focused_top_level_target(
         outputs = provider_outputs,
         platform = platform.apple_platform,
         swift_debug_settings = EMPTY_DEPSET,
+        target_output_groups = target_output_groups,
         top_level_focused_deps = top_level_focused_deps,
         top_level_swift_debug_settings = swift_debug_settings,
         transitive_dependencies = transitive_dependencies,
@@ -1071,7 +1148,7 @@ def _process_focused_top_level_target(
             id = id,
             inputs = target_inputs,
             label = label,
-            linker_inputs = linker_inputs,
+            link_params = link_params,
             mergeable_info = mergeable_info,
             outputs = target_outputs,
             package_bin_dir = package_bin_dir,
@@ -1197,9 +1274,6 @@ def _process_unfocused_top_level_target(
     )
 
     return processed_target(
-        bwb_output_groups = bwb_ogroups.merge(
-            transitive_infos = transitive_infos,
-        ),
         compilation_providers = provider_compilation_providers,
         dependencies = dependencies,
         framework_product_mappings = framework_product_mappings,
@@ -1211,6 +1285,9 @@ def _process_unfocused_top_level_target(
         outputs = output_files.merge(transitive_infos = transitive_infos),
         platform = platform.apple_platform,
         swift_debug_settings = EMPTY_DEPSET,
+        target_output_groups = output_groups.merge(
+            transitive_infos = transitive_infos,
+        ),
         top_level_focused_deps = top_level_focused_deps,
         top_level_swift_debug_settings = swift_debug_settings,
         transitive_dependencies = transitive_dependencies,

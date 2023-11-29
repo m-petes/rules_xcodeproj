@@ -1,17 +1,14 @@
 """Module containing functions dealing with the `xcode_target` data \
 structure."""
 
-load("@bazel_skylib//lib:paths.bzl", "paths")
 load(
     "//xcodeproj/internal:memory_efficiency.bzl",
     "EMPTY_DEPSET",
     "EMPTY_STRING",
-    "EMPTY_TUPLE",
-    "FALSE_ARG",
-    "TRUE_ARG",
     "memory_efficient_depset",
 )
 load(":input_files.bzl", "input_files")
+load(":pbxproj_partials.bzl", "pbxproj_partials")
 load(":product.bzl", "from_resource_bundle")
 
 _NON_COMPILE_PRODUCT_TYPES = {
@@ -44,12 +41,10 @@ def _from_resource_bundle(bundle, *, bundle_id):
             srcs = EMPTY_DEPSET,
         ),
         label = bundle.label,
-        linker_inputs = None,
-        merged_product_files = EMPTY_TUPLE,
+        link_params = None,
         module_name = EMPTY_STRING,
         outputs = struct(
             dsym_files = EMPTY_DEPSET,
-            linking_output_group_name = None,
             products_output_group_name = None,
             product_path = None,
             swift_generated_header = None,
@@ -102,7 +97,7 @@ def _make_xcode_target(
         inputs = None,
         label,
         library_inputs = None,
-        linker_inputs = None,
+        link_params = None,
         mergeable_info = None,
         outputs,
         package_bin_dir,
@@ -152,11 +147,9 @@ def _make_xcode_target(
 
     if mergeable_info:
         compile_target_ids = mergeable_info.compile_target_ids
-        merged_product_files = mergeable_info.product_files
         module_name = mergeable_info.module_name or product.module_name
     else:
         compile_target_ids = EMPTY_STRING
-        merged_product_files = EMPTY_TUPLE
         module_name = product.module_name
 
     return struct(
@@ -171,8 +164,7 @@ def _make_xcode_target(
         id = id,
         inputs = inputs,
         label = label,
-        linker_inputs = _to_xcode_target_linker_inputs(linker_inputs),
-        merged_product_files = merged_product_files,
+        link_params = link_params,
         # FIXME: Remove module_name from `product` (or just reduce what we store here?)
         module_name = module_name or EMPTY_STRING,
         outputs = _to_xcode_target_outputs(outputs),
@@ -213,19 +205,6 @@ def _merge_xcode_target_inputs(*, dest_inputs, mergeable_info):
         srcs = mergeable_info.srcs,
     )
 
-def _to_xcode_target_linker_inputs(linker_inputs):
-    if not linker_inputs:
-        return None
-
-    top_level_values = linker_inputs._top_level_values
-    if not top_level_values:
-        return None
-
-    return struct(
-        link_args = top_level_values.link_args,
-        link_args_inputs = top_level_values.link_args_inputs,
-    )
-
 def _to_xcode_target_outputs(outputs):
     direct_outputs = outputs.direct_outputs
 
@@ -240,7 +219,6 @@ def _to_xcode_target_outputs(outputs):
         dsym_files = (
             (direct_outputs.dsym_files if direct_outputs else None) or EMPTY_DEPSET
         ),
-        linking_output_group_name = outputs.linking_output_group_name,
         products_output_group_name = outputs.products_output_group_name,
         product_path = (
             direct_outputs.product_path if direct_outputs else None
@@ -250,115 +228,6 @@ def _to_xcode_target_outputs(outputs):
     )
 
 # Other
-
-def _create_single_link_params(
-        *,
-        actions,
-        generator_name,
-        link_params_processor,
-        params_index,
-        xcode_target):
-    linker_inputs = xcode_target.linker_inputs
-
-    if not linker_inputs:
-        return None
-
-    link_args = linker_inputs.link_args
-
-    if not link_args:
-        return None
-
-    name = xcode_target.label.name
-
-    link_params = actions.declare_file(
-        "{}-params/{}.{}.link.params".format(
-            generator_name,
-            name,
-            params_index,
-        ),
-    )
-
-    if xcode_target.merged_product_files:
-        self_product_paths = [
-            file.path
-            for file in xcode_target.merged_product_files
-            if file
-        ]
-    else:
-        # Handle `{cc,swift}_{binary,test}` with `srcs` case
-        self_product_paths = [
-            paths.join(
-                xcode_target.product.package_dir,
-                "lib{}.lo".format(name),
-            ),
-        ]
-
-    generated_product_paths_file = actions.declare_file(
-        "{}-params/{}.{}.generated_product_paths_file.json".format(
-            generator_name,
-            name,
-            params_index,
-        ),
-    )
-    actions.write(
-        output = generated_product_paths_file,
-        content = json.encode(self_product_paths),
-    )
-
-    is_framework = (
-        xcode_target.product.type == "com.apple.product-type.framework"
-    )
-
-    args = actions.args()
-    args.add(link_params)
-    args.add(generated_product_paths_file)
-    args.add(TRUE_ARG if is_framework else FALSE_ARG)
-
-    actions.run(
-        executable = link_params_processor,
-        arguments = [args] + link_args,
-        mnemonic = "ProcessLinkParams",
-        progress_message = "Generating %{output}",
-        inputs = (
-            [generated_product_paths_file] +
-            list(linker_inputs.link_args_inputs)
-        ),
-        outputs = [link_params],
-    )
-
-    return link_params
-
-def _create_link_params(
-        *,
-        actions,
-        generator_name,
-        link_params_processor,
-        xcode_targets):
-    """Creates the `link_params` for each `xcode_target`.
-
-    Args:
-        actions: `ctx.actions`.
-        generator_name: The name of the `xcodeproj` generator target.
-        link_params_processor: Executable to process the link params.
-        xcode_targets: A `dict` mapping `xcode_target.id` to `xcode_target`s.
-
-    Returns:
-        A `dict` mapping `xcode_target.id` to a `link.params` file for that
-        target, if one is needed.
-    """
-    link_params = {}
-    for idx, xcode_target in enumerate(xcode_targets.values()):
-        a_link_params = _create_single_link_params(
-            actions = actions,
-            generator_name = generator_name,
-            link_params_processor = link_params_processor,
-            params_index = idx,
-            xcode_target = xcode_target,
-        )
-        if a_link_params:
-            link_params[xcode_target.id] = a_link_params
-
-    return link_params
 
 def _dicts_from_xcode_configurations(
         *,
@@ -435,6 +304,7 @@ def _dicts_from_xcode_configurations(
 
     # We need to collect Info.plist files by label, to fix Xcode not showing
     # the Info pane unless all of the files exist
+    additional_outputs = {}
     transitive_infoplists_by_label = {}
 
     xcode_targets = {}
@@ -460,23 +330,73 @@ def _dicts_from_xcode_configurations(
                 xcode_configuration,
             )
 
+            products_output_group_name = (
+                xcode_target.outputs.products_output_group_name
+            )
+            if not products_output_group_name:
+                # Resource bundles don't have the product output group
+                continue
+
             infoplist = xcode_target.outputs.transitive_infoplists
             if infoplist:
-                transitive_infoplists_by_label.setdefault(
-                    xcode_target.label,
-                    [],
-                ).append(infoplist)
+                if xcode_target.label in transitive_infoplists_by_label:
+                    transitive_infoplists = (
+                        transitive_infoplists_by_label[xcode_target.label]
+                    )
+                else:
+                    transitive_infoplists = []
+                    transitive_infoplists_by_label[xcode_target.label] = (
+                        transitive_infoplists
+                    )
+
+                # We rely on the fact that `transitive_infoplists` will be
+                # mutated for future xcode_targets with the same label,
+                # to prevent having to iterate over all of the targets again
+                # to have each target have all of the same-label targets'
+                # Info.plist files
+                transitive_infoplists.append(infoplist)
+                additional_outputs[products_output_group_name] = (
+                    transitive_infoplists
+                )
 
     return (
-        transitive_infoplists_by_label,
+        additional_outputs,
         xcode_targets,
         xcode_targets_by_label,
         xcode_target_configurations,
     )
 
+def _write_swift_debug_settings(
+        *,
+        actions,
+        colorize,
+        generator_name,
+        infos_per_xcode_configuration,
+        install_path,
+        tool):
+    swift_debug_settings = []
+    for xcode_configuration, infos in infos_per_xcode_configuration.items():
+        top_level_swift_debug_settings = depset(
+            transitive = [
+                info.top_level_swift_debug_settings
+                for info in infos
+            ],
+        ).to_list()
+        configuration_swift_debug_settings = pbxproj_partials.write_swift_debug_settings(
+            actions = actions,
+            colorize = colorize,
+            generator_name = generator_name,
+            install_path = install_path,
+            tool = tool,
+            top_level_swift_debug_settings = top_level_swift_debug_settings,
+            xcode_configuration = xcode_configuration,
+        )
+        swift_debug_settings.append(configuration_swift_debug_settings)
+    return swift_debug_settings
+
 xcode_targets = struct(
-    create_link_params = _create_link_params,
     dicts_from_xcode_configurations = _dicts_from_xcode_configurations,
     make = _make_xcode_target,
     make_inputs = _make_xcode_inputs,
+    write_swift_debug_settings = _write_swift_debug_settings,
 )

@@ -1,8 +1,7 @@
 """Implementation of the `xcodeproj` rule."""
 
-load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("@bazel_skylib//lib:shell.bzl", "shell")
-load("//xcodeproj/internal:configuration.bzl", "calculate_configuration")
+load("//xcodeproj/internal:collections.bzl", "uniq")
 load("//xcodeproj/internal:execution_root.bzl", "write_execution_root_file")
 load(
     "//xcodeproj/internal:extension_point_identifiers.bzl",
@@ -23,12 +22,119 @@ load(
     xcscheme_infos_module = "xcscheme_infos",
 )
 load(":input_files.bzl", "input_files")
-load(":output_files.bzl", bwb_ogroups = "bwb_output_groups")
+load(":output_files.bzl", "output_groups")
 load(":pbxproj_partials.bzl", "pbxproj_partials")
 load(":providers.bzl", "XcodeProjInfo")
 load(":xcode_targets.bzl", xcode_targets_module = "xcode_targets")
 
 # Utility
+
+def _calculate_infos(
+        *,
+        targets,
+        top_level_deps,
+        transition_key,
+        xcode_configuration_map):
+    infos = [
+        _process_dep(dep)
+        for dep in targets[transition_key]
+    ]
+
+    target_environment_top_level_deps = {
+        top_level_focused_deps.label: struct(
+            id = top_level_focused_deps.id,
+            deps = {d.label: d.id for d in top_level_focused_deps.deps},
+        )
+        for top_level_focused_deps in depset(
+            transitive = [
+                info.top_level_focused_deps
+                for info in infos
+            ],
+        ).to_list()
+    }
+
+    for xcode_configuration in xcode_configuration_map[transition_key]:
+        top_level_deps[xcode_configuration] = target_environment_top_level_deps
+
+    return infos
+
+def _calculate_infos_and_top_level_deps(
+        *,
+        device_targets,
+        simulator_targets,
+        xcode_configuration_map):
+    infos = []
+    infos_per_xcode_configuration = {}
+    simulator_top_level_deps = {}
+    device_top_level_deps = {}
+    for key in uniq(simulator_targets.keys() + device_targets.keys()):
+        if simulator_targets:
+            simulator_infos = _calculate_infos(
+                targets = simulator_targets,
+                top_level_deps = simulator_top_level_deps,
+                transition_key = key,
+                xcode_configuration_map = xcode_configuration_map,
+            )
+            infos.extend(simulator_infos)
+        else:
+            simulator_infos = []
+
+        if device_targets:
+            device_infos = _calculate_infos(
+                targets = device_targets,
+                top_level_deps = device_top_level_deps,
+                transition_key = key,
+                xcode_configuration_map = xcode_configuration_map,
+            )
+            infos.extend(device_infos)
+        else:
+            device_infos = []
+
+        configuration_infos = simulator_infos + device_infos
+        for xcode_configuration in xcode_configuration_map[key]:
+            infos_per_xcode_configuration[xcode_configuration] = (
+                configuration_infos
+            )
+
+    if not device_top_level_deps:
+        device_top_level_deps = simulator_top_level_deps
+    elif not simulator_top_level_deps:
+        simulator_top_level_deps = device_top_level_deps
+
+    top_level_deps = {
+        "device": device_top_level_deps,
+        "simulator": simulator_top_level_deps,
+    }
+
+    return (infos, infos_per_xcode_configuration, top_level_deps)
+
+def _collect_files(
+        *,
+        unowned_extra_files,
+        unsupported_extra_files,
+        xcode_targets):
+    compile_stub_needed = False
+    transitive_file_paths = []
+    transitive_files = [unsupported_extra_files]
+    transitive_folders = []
+    for xcode_target in xcode_targets.values():
+        transitive_file_paths.append(xcode_target.inputs.extra_file_paths)
+        transitive_files.append(xcode_target.inputs.extra_files)
+        transitive_files.append(xcode_target.inputs.non_arc_srcs)
+        transitive_files.append(xcode_target.inputs.resources)
+        transitive_files.append(xcode_target.inputs.srcs)
+        transitive_folders.append(xcode_target.inputs.folder_resources)
+
+        if xcode_target.compile_stub_needed:
+            compile_stub_needed = True
+    file_paths = depset(transitive = transitive_file_paths)
+    files = depset(
+        unowned_extra_files,
+        transitive = transitive_files,
+    )
+    folders = depset(transitive = transitive_folders)
+
+    return (compile_stub_needed, file_paths, files, folders)
 
 def _get_minimum_xcode_version(*, xcode_config):
     version = str(xcode_config.xcode_version())
@@ -42,7 +148,8 @@ def _process_dep(dep):
     info = dep[XcodeProjInfo]
 
     if info.non_top_level_rule_kind:
-        fail("""
+        fail(
+            """
 '{label}' is not a top-level target, but was listed in `top_level_targets`. \
 Only list top-level targets (e.g. binaries, apps, tests, or distributable \
 frameworks) in `top_level_targets`. Schemes and \
@@ -53,23 +160,10 @@ listed in `top_level_targets`, and don't need to be listed in \
 If you feel this is an error, and `{kind}` targets should be recognized as \
 top-level targets, file a bug report here: \
 https://github.com/MobileNativeFoundation/rules_xcodeproj/issues/new?template=bug.md
-""".format(label = dep.label, kind = info.non_top_level_rule_kind))
+""".format(label = dep.label, kind = info.non_top_level_rule_kind),
+        )
 
     return info
-
-def _process_top_level_deps(*, transitive_infos):
-    return {
-        top_level_info.label: struct(
-            id = top_level_info.id,
-            deps = {d.label: d.id for d in top_level_info.deps},
-        )
-        for top_level_info in depset(
-            transitive = [
-                info.top_level_focused_deps
-                for info in transitive_infos
-            ],
-        ).to_list()
-    }
 
 # Actions
 
@@ -117,72 +211,48 @@ def _write_installer(
 # Rule
 
 def _xcodeproj_impl(ctx):
-    xcode_configuration_map = ctx.attr.xcode_configuration_map
-    infos = []
-    infos_per_xcode_configuration = {}
-    simulator_top_level_deps = {}
-    device_top_level_deps = {}
-    for transition_key in (
-        ctx.split_attr.top_level_simulator_targets.keys() +
-        ctx.split_attr.top_level_device_targets.keys()
-    ):
-        if ctx.split_attr.top_level_simulator_targets:
-            simulator_infos = [
-                _process_dep(dep)
-                for dep in ctx.split_attr.top_level_simulator_targets[transition_key]
-            ]
-            infos.extend(simulator_infos)
-            top_level_deps = _process_top_level_deps(
-                transitive_infos = simulator_infos,
-            )
-            for xcode_configuration in xcode_configuration_map[transition_key]:
-                simulator_top_level_deps[xcode_configuration] = top_level_deps
-        else:
-            simulator_infos = []
-
-        if ctx.split_attr.top_level_device_targets:
-            device_infos = [
-                _process_dep(dep)
-                for dep in ctx.split_attr.top_level_device_targets[transition_key]
-            ]
-            infos.extend(device_infos)
-            top_level_deps = _process_top_level_deps(
-                transitive_infos = device_infos,
-            )
-            for xcode_configuration in xcode_configuration_map[transition_key]:
-                device_top_level_deps[xcode_configuration] = top_level_deps
-        else:
-            device_infos = []
-
-        configuration_infos = simulator_infos + device_infos
-        for xcode_configuration in xcode_configuration_map[transition_key]:
-            infos_per_xcode_configuration[xcode_configuration] = (
-                configuration_infos
-            )
-
-    if not device_top_level_deps:
-        device_top_level_deps = simulator_top_level_deps
-    elif not simulator_top_level_deps:
-        simulator_top_level_deps = device_top_level_deps
-    top_level_deps = {
-        "device": device_top_level_deps,
-        "simulator": simulator_top_level_deps,
-    }
-
-    xcode_configurations = sorted(infos_per_xcode_configuration.keys())
-    default_xcode_configuration = (ctx.attr.default_xcode_configuration or
-                                   xcode_configurations[0])
+    (
+        infos,
+        infos_per_xcode_configuration,
+        top_level_deps,
+    ) = _calculate_infos_and_top_level_deps(
+        device_targets = ctx.split_attr.top_level_device_targets,
+        simulator_targets = ctx.split_attr.top_level_simulator_targets,
+        xcode_configuration_map = ctx.attr.xcode_configuration_map,
+    )
 
     actions = ctx.actions
-    bin_dir_path = ctx.bin_dir.path
-
-    # FIXME: Error out if `xcode`
-    build_mode = ctx.attr.build_mode
     colorize = ctx.attr.colorize
-    config = ctx.attr.config
-    configuration = calculate_configuration(bin_dir_path = bin_dir_path)
     install_path = ctx.attr.install_path
     is_fixture = ctx.attr._is_fixture
+    name = ctx.attr.name
+    project_options = ctx.attr.project_options
+    workspace_directory = ctx.attr.workspace_directory
+
+    (
+        additional_outputs,
+        xcode_targets,
+        xcode_targets_by_label,
+        xcode_target_configurations,
+    ) = xcode_targets_module.dicts_from_xcode_configurations(
+        infos_per_xcode_configuration = infos_per_xcode_configuration,
+        merged_target_ids = {
+            dest: srcs
+            for dest, srcs in depset(
+                transitive = [
+                    info.merged_target_ids
+                    for info in infos
+                ],
+            ).to_list()
+        },
+    )
+
+    if not xcode_targets:
+        fail("""\
+After removing unfocused targets, no targets remain. Please check your \
+`xcodeproj.focused_targets` and `xcodeproj.unfocused_targets` attributes.
+""")
+
     minimum_xcode_version = (
         ctx.attr.minimum_xcode_version or
         _get_minimum_xcode_version(
@@ -191,79 +261,6 @@ def _xcodeproj_impl(ctx):
             ),
         )
     )
-    name = ctx.attr.name
-    project_options = ctx.attr.project_options
-    workspace_directory = ctx.attr.workspace_directory
-
-    targets_args = {
-        s.id: s.args
-        for s in depset(
-            transitive = [info.args for info in infos],
-        ).to_list()
-        if s.args
-    }
-    targets_env = {
-        s.id: s.env
-        for s in depset(
-            transitive = [info.env for info in infos],
-        ).to_list()
-        if s.env
-    }
-
-    merged_target_ids = {
-        dest: srcs
-        for dest, srcs in depset(
-            transitive = [
-                info.merged_target_ids
-                for info in infos
-            ],
-        ).to_list()
-    }
-
-    bwb_output_groups = bwb_ogroups.merge(
-        transitive_infos = infos,
-    )
-    inputs = input_files.merge(
-        transitive_infos = infos,
-    )
-
-    # FIXME: Extract
-    all_swift_debug_settings = []
-    for xcode_configuration, configuration_infos in infos_per_xcode_configuration.items():
-        top_level_swift_debug_settings = depset(
-            transitive = [
-                info.top_level_swift_debug_settings
-                for info in configuration_infos
-            ],
-        ).to_list()
-        swift_debug_settings = pbxproj_partials.write_swift_debug_settings(
-            actions = actions,
-            colorize = colorize,
-            generator_name = name,
-            install_path = install_path,
-            tool = ctx.executable._swift_debug_settings_generator,
-            top_level_swift_debug_settings = top_level_swift_debug_settings,
-            xcode_configuration = xcode_configuration,
-        )
-        all_swift_debug_settings.append(swift_debug_settings)
-
-    # END FIXME
-
-    (
-        transitive_infoplists_by_label,
-        xcode_targets,
-        xcode_targets_by_label,
-        xcode_target_configurations,
-    ) = xcode_targets_module.dicts_from_xcode_configurations(
-        infos_per_xcode_configuration = infos_per_xcode_configuration,
-        merged_target_ids = merged_target_ids,
-    )
-
-    if not xcode_targets:
-        fail("""\
-After removing unfocused targets, no targets remain. Please check your \
-`focused_targets` and `unfocused_targets` attributes.
-""")
 
     target_ids_list = write_target_ids_list(
         actions = actions,
@@ -273,25 +270,18 @@ After removing unfocused targets, no targets remain. Please check your \
 
     execution_root_file = write_execution_root_file(
         actions = actions,
-        bin_dir_path = bin_dir_path,
+        bin_dir_path = ctx.bin_dir.path,
         name = name,
     )
 
-    bazel_integration_files = (
-        all_swift_debug_settings +
-        # FIXME: Merge these two
-        ctx.files._base_integration_files +
-        ctx.files._bazel_integration_files
-    ) + [
-        write_bazel_build_script(
-            actions = actions,
-            bazel_env = ctx.attr.bazel_env,
-            bazel_path = ctx.attr.bazel_path,
-            generator_label = ctx.label,
-            target_ids_list = target_ids_list,
-            template = ctx.file._bazel_build_script_template,
-        ),
-    ]
+    swift_debug_settings = xcode_targets_module.write_swift_debug_settings(
+        actions = actions,
+        colorize = colorize,
+        generator_name = name,
+        infos_per_xcode_configuration = infos_per_xcode_configuration,
+        install_path = install_path,
+        tool = ctx.executable._swift_debug_settings_generator,
+    )
 
     (
         pbxtargetdependencies,
@@ -311,12 +301,9 @@ After removing unfocused targets, no targets remain. Please check your \
         tool = ctx.executable._pbxtargetdependencies_generator,
     )
 
-    # Can probably move this into `xcode_targets.merge` (or `finalize` or whatever)
-    link_params = xcode_targets_module.create_link_params(
-        actions = actions,
-        generator_name = name,
-        link_params_processor = ctx.executable._link_params_processor,
-        xcode_targets = xcode_targets,
+    xcode_configurations = sorted(infos_per_xcode_configuration.keys())
+    default_xcode_configuration = (
+        ctx.attr.default_xcode_configuration or xcode_configurations[0]
     )
 
     (
@@ -329,7 +316,6 @@ After removing unfocused targets, no targets remain. Please check your \
         default_xcode_configuration = default_xcode_configuration,
         generator_name = name,
         install_path = install_path,
-        link_params = link_params,
         tool = ctx.executable._pbxnativetargets_generator,
         xcode_target_configurations = xcode_target_configurations,
         xcode_targets = xcode_targets,
@@ -371,46 +357,40 @@ After removing unfocused targets, no targets remain. Please check your \
             ctx.attr.adjust_schemes_for_swiftui_previews
         ),
         install_path = install_path,
-        targets_args = targets_args,
-        targets_env = targets_env,
+        targets_args = {
+            s.id: s.args
+            for s in depset(
+                transitive = [info.args for info in infos],
+            ).to_list()
+            if s.args
+        },
+        targets_env = {
+            s.id: s.env
+            for s in depset(
+                transitive = [info.env for info in infos],
+            ).to_list()
+            if s.env
+        },
         tool = ctx.executable._xcschemes_generator,
         workspace_directory = workspace_directory,
         xcode_targets = xcode_targets,
         xcscheme_infos = xcscheme_infos,
     )
 
+    inputs = input_files.merge(transitive_infos = infos)
+
+    (compile_stub_needed, file_paths, files, folders) = _collect_files(
+        unowned_extra_files = ctx.files.unowned_extra_files,
+        unsupported_extra_files = inputs.unsupported_extra_files,
+        xcode_targets = xcode_targets,
+    )
+
     selected_model_versions_file = write_selected_model_versions_file(
         actions = actions,
         name = name,
         tool = ctx.executable._selected_model_versions_generator,
-        xccurrentversions_files = [
-            file
-            for _, files in inputs.xccurrentversions.to_list()
-            for file in files
-        ],
+        xccurrentversions_files = inputs.xccurrentversions,
     )
-
-    # FIXME: Extract
-    compile_stub_needed = False
-    transitive_files = [inputs.unsupported_extra_files]
-    transitive_file_paths = []
-    transitive_folders = []
-    for xcode_target in xcode_targets.values():
-        transitive_files.append(xcode_target.inputs.non_arc_srcs)
-        transitive_files.append(xcode_target.inputs.srcs)
-        transitive_files.append(xcode_target.inputs.resources)
-        transitive_folders.append(xcode_target.inputs.folder_resources)
-        transitive_files.append(xcode_target.inputs.extra_files)
-        transitive_file_paths.append(xcode_target.inputs.extra_file_paths)
-
-        if xcode_target.compile_stub_needed:
-            compile_stub_needed = True
-    for files_target in ctx.attr.unowned_extra_files:
-        transitive_files.append(files_target.files)
-    files = depset(transitive = transitive_files)
-    file_paths = depset(transitive = transitive_file_paths)
-    folders = depset(transitive = transitive_folders)
-    # END FIXME
 
     (
         pbxproject_known_regions,
@@ -433,13 +413,17 @@ After removing unfocused targets, no targets remain. Please check your \
         workspace_directory = workspace_directory,
     )
 
+    config = ctx.attr.config
+    index_import = ctx.executable._index_import
+
     pbxproj_prefix = pbxproj_partials.write_pbxproj_prefix(
         actions = actions,
         colorize = colorize,
+        config = config,
         default_xcode_configuration = default_xcode_configuration,
         execution_root_file = execution_root_file,
         generator_name = name,
-        index_import = ctx.executable._index_import,
+        index_import = index_import,
         install_path = install_path,
         minimum_xcode_version = minimum_xcode_version,
         platforms = depset(transitive = [info.platforms for info in infos]),
@@ -472,6 +456,20 @@ After removing unfocused targets, no targets remain. Please check your \
         generator_name = name,
     )
 
+    bazel_build_script = write_bazel_build_script(
+        actions = actions,
+        bazel_env = ctx.attr.bazel_env,
+        bazel_path = ctx.attr.bazel_path,
+        generator_label = ctx.label,
+        target_ids_list = target_ids_list,
+        template = ctx.file._bazel_build_script_template,
+    )
+
+    bazel_integration_files = (
+        [bazel_build_script] + swift_debug_settings +
+        ctx.files._bazel_integration_files
+    )
+
     contents_xcworkspacedata = ctx.file._contents_xcworkspacedata
 
     installer = _write_installer(
@@ -489,74 +487,31 @@ After removing unfocused targets, no targets remain. Please check your \
         xcschemes = xcschemes,
     )
 
-    # FIXME: Extract
-
-    additional_bwb_outputs = {}
-
-    for xcode_target in xcode_targets.values():
-        target_link_params = link_params.get(xcode_target.id)
-        if target_link_params:
-            transitive_link_params = [target_link_params]
-        else:
-            transitive_link_params = []
-
-        for id in xcode_target.transitive_dependencies.to_list():
-            target_link_params = link_params.get(id)
-            if target_link_params:
-                transitive_link_params.append(target_link_params)
-
-        bwb_linking_output_group_name = (
-            xcode_target.outputs.linking_output_group_name
-        )
-        bwb_products_output_group_name = (
-            xcode_target.outputs.products_output_group_name
-        )
-
-        if transitive_link_params and bwb_linking_output_group_name:
-            # FIXME: Depset earlier?
-            additional_bwb_outputs[bwb_linking_output_group_name] = [depset(
-                transitive_link_params,
-            )]
-
-        infoplists = transitive_infoplists_by_label.get(xcode_target.label)
-        if infoplists and bwb_products_output_group_name:
-            additional_bwb_outputs[bwb_products_output_group_name] = (
-                infoplists
-            )
-
-    input_files_output_groups = {}
-    output_files_output_groups = bwb_ogroups.to_output_groups_fields(
-        bwb_output_groups = bwb_output_groups,
-        additional_bwb_outputs = additional_bwb_outputs,
-        index_import = ctx.executable._index_import,
+    output_groups_fields = output_groups.to_output_groups_fields(
+        additional_outputs = additional_outputs,
+        target_output_groups = output_groups.merge(transitive_infos = infos),
     )
-    all_targets_files = [output_files_output_groups["all_b"]]
 
     return [
         DefaultInfo(
             executable = installer,
+            files = depset(
+                transitive = [inputs.important_generated],
+            ),
             runfiles = ctx.runfiles(
                 files = [
                     contents_xcworkspacedata,
                     project_pbxproj,
                     xcschememanagement,
                     xcschemes,
-                ] + (
-                    bazel_integration_files +
-                    all_swift_debug_settings +
-                    xcfilelists
-                ),
+                ] + bazel_integration_files + xcfilelists,
             ),
         ),
         OutputGroupInfo(
-            all_targets = depset(
-                transitive = all_targets_files,
-            ),
+            all_targets = output_groups_fields["all_b"],
+            index_import = depset([index_import]),
             target_ids_list = depset([target_ids_list]),
-            **dicts.add(
-                input_files_output_groups,
-                output_files_output_groups,
-            )
+            **output_groups_fields
         ),
     ]
 
@@ -583,6 +538,7 @@ def make_xcodeproj_rule(
         "bazel_path": attr.string(
             mandatory = True,
         ),
+        # TODO: Remove
         "build_mode": attr.string(
             mandatory = True,
         ),
@@ -638,12 +594,14 @@ def make_xcodeproj_rule(
         "target_name_mode": attr.string(
             mandatory = True,
         ),
+        # FIXME: Rename (remove "top_level_")
         "top_level_device_targets": attr.label_list(
             cfg = target_transitions.device,
             aspects = [xcodeproj_aspect],
             providers = [XcodeProjInfo],
             mandatory = True,
         ),
+        # FIXME: Rename (remove "top_level_")
         "top_level_simulator_targets": attr.label_list(
             cfg = target_transitions.simulator,
             aspects = [xcodeproj_aspect],
@@ -678,13 +636,6 @@ def make_xcodeproj_rule(
                 "@bazel_tools//tools/allowlists/function_transition_allowlist",
             ),
         ),
-        "_base_integration_files": attr.label(
-            cfg = "exec",
-            allow_files = True,
-            default = Label(
-                "//xcodeproj/internal/bazel_integration_files:base_integration_files",
-            ),
-        ),
         "_bazel_build_script_template": attr.label(
             allow_single_file = True,
             default = Label(
@@ -694,7 +645,9 @@ def make_xcodeproj_rule(
         "_bazel_integration_files": attr.label(
             cfg = "exec",
             allow_files = True,
-            default = Label("//xcodeproj/internal/bazel_integration_files"),
+            default = Label(
+                "//xcodeproj/internal/bazel_integration_files:bwb_integration_files",
+            ),
         ),
         "_contents_xcworkspacedata": attr.label(
             allow_single_file = True,
@@ -730,11 +683,6 @@ def make_xcodeproj_rule(
             default = Label("//xcodeproj/internal/templates:cat.installer.sh"),
         ),
         "_is_fixture": attr.bool(default = is_fixture),
-        "_link_params_processor": attr.label(
-            cfg = "exec",
-            default = Label("//tools/params_processors:cat_link_params_processor"),
-            executable = True,
-        ),
         "_pbxnativetargets_generator": attr.label(
             cfg = "exec",
             default = Label(

@@ -92,4 +92,5 @@ string_flag(
         "legacy",
         "incremental",
     ]
+    if build_mode == "bazel" or generation_mode == "legacy"
 ]

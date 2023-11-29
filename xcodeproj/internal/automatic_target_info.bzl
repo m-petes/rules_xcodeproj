@@ -317,7 +317,6 @@ def calculate_automatic_target_info(ctx, build_mode, target):
         non_arc_srcs = non_arc_srcs,
         pch = pch,
         provisioning_profile = provisioning_profile,
-        should_generate = True,
         srcs = srcs,
         target_type = this_target_type,
         xcode_targets = xcode_targets,

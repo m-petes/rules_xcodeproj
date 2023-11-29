@@ -5,7 +5,6 @@ load(":providers.bzl", "target_type")
 
 def processed_target(
         *,
-        bwb_output_groups,
         compilation_providers,
         dependencies,
         extension_infoplists = None,
@@ -20,6 +19,7 @@ def processed_target(
         platform = None,
         resource_bundle_ids = None,
         swift_debug_settings,
+        target_output_groups,
         top_level_focused_deps = None,
         top_level_swift_debug_settings = EMPTY_DEPSET,
         transitive_dependencies,
@@ -27,7 +27,6 @@ def processed_target(
     """Generates the return value for target processing functions.
 
     Args:
-        bwb_output_groups: A value as returned from `bwb_output_groups.collect`.
         compilation_providers: A value as returned from
             `compilation_providers.{collect,merge}`.
         dependencies: A `depset` of target ids of direct dependencies of this
@@ -55,6 +54,7 @@ def processed_target(
             `XcodeProjInfo.resource_bundle_ids` `depset`.
         swift_debug_settings: A `depset` of `Files` to be set on the
             `XcodeProjInfo.swift_debug_settings` field.
+        target_output_groups: A value as returned from `output_groups.collect`.
         transitive_dependencies: A `depset` of target ids of transitive
             dependencies of this target.
         top_level_focused_deps: A `list` of `structs` that will be included in
@@ -68,7 +68,6 @@ def processed_target(
         A `struct` containing fields for each argument.
     """
     return struct(
-        bwb_output_groups = bwb_output_groups,
         compilation_providers = compilation_providers,
         dependencies = dependencies,
         extension_infoplists = extension_infoplists,
@@ -83,6 +82,7 @@ def processed_target(
         platform = platform,
         resource_bundle_ids = resource_bundle_ids,
         swift_debug_settings = swift_debug_settings,
+        target_output_groups = target_output_groups,
         target_type = target_type,
         top_level_focused_deps = top_level_focused_deps,
         top_level_swift_debug_settings = top_level_swift_debug_settings,

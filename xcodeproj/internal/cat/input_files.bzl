@@ -4,7 +4,7 @@ load(
     "@build_bazel_rules_apple//apple:providers.bzl",
     "AppleResourceInfo",
 )
-load("@build_bazel_rules_swift//swift:swift.bzl", "SwiftInfo", "SwiftProtoInfo")
+load("@build_bazel_rules_swift//swift:swift.bzl", "SwiftProtoInfo")
 load(
     "//xcodeproj/internal:memory_efficiency.bzl",
     "EMPTY_DEPSET",
@@ -288,7 +288,7 @@ def _collect_input_files(
         product,
         linker_inputs,
         automatic_target_info,
-        additional_files = EMPTY_LIST,
+        infoplist = None,
         transitive_infos,
         avoid_deps = EMPTY_LIST):
     """Collects all of the inputs of a target.
@@ -300,6 +300,8 @@ def _collect_input_files(
         attrs: `dir(ctx.rule.attr)` (as a performance optimization).
         id: A unique identifier for the target. Will be `None` for non-Xcode
             targets.
+        infoplist: A `File` for a rules_xcodeproj modified Info.plist file, or
+            None for non-top-level targets.
         platform: A value returned from `platforms.collect`.
         is_resource_bundle_consuming: Whether `target` is a resource bundle
             consuming target (i.e. a bundle with a `AppleResourceInfo`
@@ -308,9 +310,6 @@ def _collect_input_files(
         linker_inputs: A value returned from `linker_file_inputs.collect`.
         automatic_target_info: The `XcodeProjAutomaticTargetProcessingInfo` for
             `target`.
-        additional_files: A `list` of `File`s to add to the inputs. This can
-            be used to add files to the `generated` and `extra_files` fields
-            (e.g. modulemaps or BUILD files).
         transitive_infos: A `list` of `XcodeProjInfo`s for the transitive
             dependencies of `target`.
         avoid_deps: A `list` of the targets that already consumed resources, and
@@ -358,12 +357,12 @@ def _collect_input_files(
     entitlements = []
     c_sources = {}
     cxx_sources = {}
+    generated = []
     non_arc_srcs = []
     pch = []
     srcs = []
 
-    generated = [file for file in additional_files if not file.is_source]
-    extra_files = list(additional_files)
+    extra_files = [infoplist] if infoplist else []
 
     label = automatic_target_info.label
 
@@ -630,9 +629,7 @@ def _collect_input_files(
                 ],
             ),
             xccurrentversions = memory_efficient_depset(
-                [
-                    (label, tuple(xccurrentversions)),
-                ] if xccurrentversions else None,
+                xccurrentversions,
                 transitive = [
                     info.inputs.xccurrentversions
                     for info in transitive_infos
@@ -708,11 +705,11 @@ def _collect_unsupported_input_files(
 
     label = automatic_target_info.label
 
-    # Include BUILD files for the project but not for external repos
-    if include_extra_files and not label.workspace_root:
-        extra_file_paths.append(ctx.build_file_path)
-
     if include_extra_files:
+        if not label.workspace_root:
+            # Include BUILD files for the project but not for external repos
+            extra_file_paths.append(ctx.build_file_path)
+
         # buildifier: disable=uninitialized
         def _handle_extrafiles_file(file):
             extra_files.append(file)
@@ -809,9 +806,7 @@ def _collect_unsupported_input_files(
             ] + (transitive_extra_files if include_extra_files else []),
         ),
         xccurrentversions = memory_efficient_depset(
-            [
-                (label, tuple(xccurrentversions)),
-            ] if xccurrentversions else None,
+            xccurrentversions,
             transitive = [
                 info.inputs.xccurrentversions
                 for info in transitive_infos
@@ -881,8 +876,6 @@ def _merge_top_level_input_files(
         resource_bundles = resources_result.bundles
 
         xccurrentversions = resources_result.xccurrentversions
-        if xccurrentversions:
-            xccurrentversions = [(label, tuple(xccurrentversions))]
     else:
         generated = None
         resource_bundles = None

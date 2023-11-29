@@ -9,7 +9,10 @@ load(
 
 _objc_has_linking_info = not bazel_features.cc.objc_linking_info_migrated
 
-_FRAMEWORK_PRODUCT_TYPE = "f"  # com.apple.product-type.framework
+_PROPAGATE_PROVIDERS_PRODUCT_TYPES = {
+    "F": None,  # com.apple.product-type.framework.static
+    "f": None,  # com.apple.product-type.framework
+}
 
 def _collect_compilation_providers(*, cc_info, objc):
     """Collects compilation providers for a non top-level target.
@@ -85,16 +88,25 @@ def _merge_compilation_providers(
     else:
         propagated_framework_files = framework_files
 
-    merged_cc_info = cc_common.merge_cc_infos(
-        direct_cc_infos = [cc_info] if cc_info else [],
-        cc_infos = [
-            providers._cc_info
-            for _, providers in transitive_compilation_providers
-            if providers._cc_info
-        ],
-    )
-
     objc = None
+    propagated_objc = None
+
+    transitive_cc_infos = [
+        providers._cc_info
+        for _, providers in transitive_compilation_providers
+        if providers._cc_info
+    ]
+
+    if len(transitive_cc_infos) > 1 or (cc_info and transitive_cc_infos):
+        merged_cc_info = cc_common.merge_cc_infos(
+            direct_cc_infos = [cc_info] if cc_info else [],
+            cc_infos = transitive_cc_infos,
+        )
+    elif transitive_cc_infos:
+        merged_cc_info = transitive_cc_infos[0]
+    else:
+        merged_cc_info = cc_info
+
     if _objc_has_linking_info:
         maybe_objc_providers = [
             _to_objc(providers._propagated_objc, providers._cc_info)
@@ -102,15 +114,15 @@ def _merge_compilation_providers(
         ]
         objc_providers = [objc for objc in maybe_objc_providers if objc]
         if objc_providers:
-            objc = apple_common.new_objc_provider(providers = objc_providers)
+            objc = apple_common.new_objc_provider(
+                providers = objc_providers,
+            )
         if apple_dynamic_framework_info:
             propagated_objc = apple_dynamic_framework_info.objc
         else:
             propagated_objc = objc
-    else:
-        propagated_objc = None
 
-    propagate_providers = product_type == _FRAMEWORK_PRODUCT_TYPE
+    propagate_providers = product_type in _PROPAGATE_PROVIDERS_PRODUCT_TYPES
 
     return (
         struct(

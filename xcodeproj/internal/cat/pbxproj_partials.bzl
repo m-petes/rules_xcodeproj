@@ -49,10 +49,6 @@ def _filter_generated_file_path(file_path):
     # Removing "bazel-out" prefix
     return "$(BAZEL_OUT){}".format(file_path[9:])
 
-def _keys_and_files(pair):
-    key, file = pair
-    return [key, file.path]
-
 _RESOURCES_FOLDER_TYPE_EXTENSIONS = [
     ".bundle",
     ".docc",
@@ -92,52 +88,6 @@ _FLAGS = struct(
     use_base_internationalization = "--use-base-internationalization",
 )
 
-def _write_swift_debug_settings(
-        *,
-        actions,
-        colorize,
-        generator_name,
-        install_path,
-        tool,
-        top_level_swift_debug_settings,
-        xcode_configuration):
-    output = actions.declare_file(
-        "{}_swift_debug_settings/{}-swift_debug_settings.py".format(
-            generator_name,
-            xcode_configuration,
-        ),
-    )
-
-    args = actions.args()
-
-    # colorize
-    args.add(TRUE_ARG if colorize else FALSE_ARG)
-
-    # outputPath
-    args.add(output)
-
-    # keysAndFiles
-    args.add_all(top_level_swift_debug_settings, map_each = _keys_and_files)
-
-    message = "Generating {} {}-swift_debug_settings.py".format(
-        install_path,
-        xcode_configuration,
-    )
-
-    actions.run(
-        arguments = [args],
-        executable = tool,
-        inputs = [
-            file
-            for _, file in top_level_swift_debug_settings
-        ],
-        outputs = [output],
-        progress_message = message,
-        mnemonic = "WriteSwiftDebugSettings",
-    )
-
-    return output
-
 def _write_targets(
         *,
         actions,
@@ -146,7 +96,6 @@ def _write_targets(
         default_xcode_configuration,
         generator_name,
         install_path,
-        link_params,
         tool,
         xcode_target_configurations,
         xcode_targets,
@@ -164,8 +113,6 @@ def _write_targets(
         generator_name: The name of the `xcodeproj` generator target.
         install_path: The workspace relative path to where the final
             `.xcodeproj` will be written.
-        link_params: A `dict` mapping `xcode_target.id` to a `link.params` file
-            for that target, if one is needed.
         tool: The executable that will generate the output files.
         xcode_target_configurations: A `dict` mapping `xcode_target.id` to a
             `list` of Xcode configuration names that the target is present in.
@@ -196,7 +143,6 @@ def _write_targets(
             idx = consolidation_map.basename,
             install_path = install_path,
             labels = labels,
-            link_params = link_params,
             tool = tool,
             xcode_target_configurations = xcode_target_configurations,
             xcode_targets = xcode_targets,
@@ -236,7 +182,6 @@ def _write_consolidation_map_targets(
         idx,
         install_path,
         labels,
-        link_params,
         tool,
         xcode_target_configurations,
         xcode_targets,
@@ -255,8 +200,6 @@ def _write_consolidation_map_targets(
         idx: The index of the consolidation map.
         install_path: The workspace relative path to where the final
             `.xcodeproj` will be written.
-        link_params: A `dict` mapping `xcode_target.id` to a `link.params` file
-            for that target, if one is needed.
         labels: A `list` of `Label`s of the targets included in
             `consolidation_map`.
         tool: The executable that will generate the output files.
@@ -432,7 +375,7 @@ def _write_consolidation_map_targets(
                     xcode_target.outputs.product_path or EMPTY_STRING,
                 )
                 top_level_targets_args.add(
-                    link_params.get(xcode_target.id, EMPTY_STRING),
+                    xcode_target.link_params or EMPTY_STRING,
                 )
                 top_level_targets_args.add(
                     xcode_target.product.executable_name or EMPTY_STRING,
@@ -647,7 +590,7 @@ pbxproj_partials = struct(
     write_pbxproj_prefix = _pbxproj_partials.write_pbxproj_prefix,
     write_pbxtargetdependencies = _pbxproj_partials.write_pbxtargetdependencies,
     write_project_pbxproj = _write_project_pbxproj,
-    write_swift_debug_settings = _write_swift_debug_settings,
+    write_swift_debug_settings = _pbxproj_partials.write_swift_debug_settings,
     write_target_build_settings = _pbxproj_partials.write_target_build_settings,
     write_targets = _write_targets,
     write_xcfilelists = _write_xcfilelists,

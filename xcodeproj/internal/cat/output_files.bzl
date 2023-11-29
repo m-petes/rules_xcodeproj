@@ -126,11 +126,11 @@ def _collect_output_files(
         id,
         indexstore_overrides = [],
         infoplist = None,
+        link_params = None,
         name,
         output_group_info,
         product = None,
         should_produce_dto = True,
-        should_produce_output_groups = True,
         swift_info,
         transitive_infos):
     """Collects the outputs of a target.
@@ -147,6 +147,7 @@ def _collect_output_files(
             that override the indexstore for the target. This is used for merged
             targets.
         infoplist: A `File` or `None`.
+        link_params: A `File` or `None`.
         name: Name (potentially replaced) of the target.
         output_group_info: The `OutputGroupInfo` provider for the target, or
             `None`.
@@ -154,10 +155,6 @@ def _collect_output_files(
         should_produce_dto: If `True`, `outputs_files.to_dto` will return
             collected values. This will only be `True` if the generator can use
             the output files (e.g. not Build with Bazel via Proxy).
-        should_produce_output_groups: If `True`,
-            `outputs.to_output_groups_fields` will include output groups for
-            this target. This will only be `True` for modes that build primarily
-            with Bazel.
         swift_info: The `SwiftInfo` provider for the target, or `None`.
         transitive_infos: A `list` of `XcodeProjInfo`s for the transitive
             dependencies of the target.
@@ -190,58 +187,51 @@ def _collect_output_files(
     if direct_outputs.dsym_files:
         dsym_files = direct_outputs.dsym_files
 
-    if should_produce_output_groups:
-        if compiled:
-            # We only need the single swiftmodule in order to download
-            # everything from the remote cache (because of
-            # `--experimental_remote_download_regex`). Reducing the number of
-            # items in an output group keeps the BEP small.
-            closest_compiled = memory_efficient_depset(compiled[0:1])
-        else:
-            closest_compiled = memory_efficient_depset(transitive = [
-                info.outputs._closest_compiled
-                for info in transitive_infos
-                if not info.outputs._is_framework
-            ])
-
-        if not indexstore_overrides and indexstore:
-            indexstore_overrides = [(indexstore, EMPTY_STRING)]
-
-        transitive_indexstore_overrides = memory_efficient_depset(
-            indexstore_overrides,
-            transitive = [
-                info.outputs._transitive_indexstore_overrides
-                for info in transitive_infos
-            ],
-        )
-        transitive_indexstores = memory_efficient_depset(
-            [indexstore] if indexstore else None,
-            transitive = [
-                info.outputs._transitive_indexstores
-                for info in transitive_infos
-            ],
-        )
-
-        # TODO: Once BwB mode no longer has target dependencies, remove
-        # transitive products. Until then we need them, to allow `Copy Bazel
-        # Outputs` to be able to copy the products of transitive dependencies.
-        transitive_products = memory_efficient_depset(
-            direct_products if copy_product_transitively else None,
-            transitive = [
-                info.outputs._transitive_products
-                for info in transitive_infos
-            ] + [dsym_files],
-        )
-        products_depset = memory_efficient_depset(
-            direct_products if not copy_product_transitively else None,
-            transitive = [transitive_products],
-        )
+    if compiled:
+        # We only need the single swiftmodule in order to download
+        # everything from the remote cache (because of
+        # `--experimental_remote_download_regex`). Reducing the number of
+        # items in an output group keeps the BEP small.
+        closest_compiled = memory_efficient_depset(compiled[0:1])
     else:
-        closest_compiled = EMPTY_DEPSET
-        transitive_indexstore_overrides = EMPTY_DEPSET
-        transitive_indexstores = EMPTY_DEPSET
-        transitive_products = EMPTY_DEPSET
-        products_depset = EMPTY_DEPSET
+        closest_compiled = memory_efficient_depset(transitive = [
+            info.outputs._closest_compiled
+            for info in transitive_infos
+            if not info.outputs._is_framework
+        ])
+
+    if not indexstore_overrides and indexstore:
+        indexstore_overrides = [(indexstore, EMPTY_STRING)]
+
+    transitive_indexstore_overrides = memory_efficient_depset(
+        indexstore_overrides,
+        transitive = [
+            info.outputs._transitive_indexstore_overrides
+            for info in transitive_infos
+        ],
+    )
+    transitive_indexstores = memory_efficient_depset(
+        [indexstore] if indexstore else None,
+        transitive = [
+            info.outputs._transitive_indexstores
+            for info in transitive_infos
+        ],
+    )
+
+    # TODO: Once BwB mode no longer has target dependencies, remove
+    # transitive products. Until then we need them, to allow `Copy Bazel
+    # Outputs` to be able to copy the products of transitive dependencies.
+    transitive_products = memory_efficient_depset(
+        direct_products if copy_product_transitively else None,
+        transitive = [
+            info.outputs._transitive_products
+            for info in transitive_infos
+        ] + [dsym_files],
+    )
+    products_depset = memory_efficient_depset(
+        direct_products if not copy_product_transitively else None,
+        transitive = [transitive_products],
+    )
 
     transitive_infoplists = memory_efficient_depset(
         [infoplist] if infoplist else None,
@@ -250,47 +240,40 @@ def _collect_output_files(
             for info in transitive_infos
         ],
     )
+    transitive_link_params = memory_efficient_depset(
+        [link_params] if link_params else None,
+        transitive = [
+            info.outputs._transitive_link_params
+            for info in transitive_infos
+        ],
+    )
 
-    if should_produce_output_groups:
-        generated_output_group_name = "bc {}".format(direct_outputs.id)
-        linking_output_group_name = "bl {}".format(direct_outputs.id)
-        products_output_group_name = "bp {}".format(direct_outputs.id)
+    generated_output_group_name = "bc {}".format(direct_outputs.id)
+    products_output_group_name = "bp {}".format(direct_outputs.id)
 
-        indexstores_filelist = indexstore_filelists.write(
-            actions = actions,
-            indexstore_and_target_overrides = transitive_indexstore_overrides,
-            indexstores = transitive_indexstores,
-            name = "bi",
-            rule_name = name,
-        )
+    indexstores_filelist = indexstore_filelists.write(
+        actions = actions,
+        indexstore_and_target_overrides = transitive_indexstore_overrides,
+        indexstores = transitive_indexstores,
+        name = "bi",
+        rule_name = name,
+    )
 
-        # We don't want to declare indexstore files as outputs, because they
-        # expand to individual files and blow up the BEP
-        indexstores_files = depset([indexstores_filelist])
+    # We don't want to declare indexstore files as outputs, because they
+    # expand to individual files and blow up the BEP
+    indexstores_files = depset([indexstores_filelist])
 
-        compiled_and_generated_transitive = [closest_compiled]
+    compiled_and_generated_transitive = [closest_compiled]
 
-        direct_group_list = [
-            (
-                "bi {}".format(direct_outputs.id),
-                True,
-                indexstores_files,
-            ),
-            (linking_output_group_name, False, EMPTY_DEPSET),
-            (products_output_group_name, False, products_depset),
-        ]
-    else:
-        generated_output_group_name = None
-        linking_output_group_name = None
-        products_output_group_name = None
-        compiled_and_generated_transitive = None
-        direct_group_list = None
+    direct_group_list = [
+        ("bi {}".format(direct_outputs.id), indexstores_files),
+        ("bl {}".format(direct_outputs.id), transitive_link_params),
+        (products_output_group_name, products_depset),
+    ]
 
     return (
         struct(
             direct_outputs = direct_outputs if should_produce_dto else None,
-            generated_output_group_name = generated_output_group_name,
-            linking_output_group_name = linking_output_group_name,
             products_output_group_name = products_output_group_name,
             transitive_infoplists = transitive_infoplists,
         ),
@@ -299,8 +282,9 @@ def _collect_output_files(
             _is_framework = is_framework,
             _transitive_indexstore_overrides = transitive_indexstore_overrides,
             _transitive_indexstores = transitive_indexstores,
-            _transitive_products = transitive_products,
             _transitive_infoplists = transitive_infoplists,
+            _transitive_link_params = transitive_link_params,
+            _transitive_products = transitive_products,
         ),
         struct(
             _compiled_and_generated_transitive = (
@@ -328,18 +312,24 @@ def _merge_output_files(*, transitive_infos):
         _is_framework = False,
         _transitive_indexstore_overrides = EMPTY_DEPSET,
         _transitive_indexstores = EMPTY_DEPSET,
-        _transitive_products = EMPTY_DEPSET,
         _transitive_infoplists = memory_efficient_depset(
             transitive = [
                 info.outputs._transitive_infoplists
                 for info in transitive_infos
             ],
         ),
+        _transitive_link_params = memory_efficient_depset(
+            transitive = [
+                info.outputs._transitive_link_params
+                for info in transitive_infos
+            ],
+        ),
+        _transitive_products = EMPTY_DEPSET,
     )
 
 # Output groups
 
-def _collect_bwb_output_groups(
+def _collect_output_groups(
         *,
         compiling_files,
         metadata,
@@ -347,25 +337,21 @@ def _collect_bwb_output_groups(
     compiled_and_generated_transitive = (
         metadata._compiled_and_generated_transitive
     )
-    if compiled_and_generated_transitive:
-        compiled_and_generated_transitive.append(compiling_files)
+    compiled_and_generated_transitive.append(compiling_files)
 
-        direct_group_list = metadata._direct_group_list + [
-            (
-                metadata._generated_output_group_name,
-                False,
-                memory_efficient_depset(
-                    transitive = compiled_and_generated_transitive,
-                ),
+    direct_group_list = metadata._direct_group_list + [
+        (
+            metadata._generated_output_group_name,
+            memory_efficient_depset(
+                transitive = compiled_and_generated_transitive,
             ),
-        ]
-    else:
-        direct_group_list = None
+        ),
+    ]
 
     output_group_list = memory_efficient_depset(
         direct_group_list,
         transitive = [
-            info.bwb_output_groups._output_group_list
+            info.target_output_groups._output_group_list
             for info in transitive_infos
         ],
     )
@@ -374,7 +360,7 @@ def _collect_bwb_output_groups(
         _output_group_list = output_group_list,
     )
 
-def _merge_bwb_output_groups(*, transitive_infos):
+def _merge_output_groups(*, transitive_infos):
     """Creates merged BwB output groups.
 
     Args:
@@ -382,65 +368,38 @@ def _merge_bwb_output_groups(*, transitive_infos):
             dependencies of the current target.
 
     Returns:
-        A value similar to the one returned from `bwb_output_groups.collect`.
+        A value similar to the one returned from `output_groups.collect`.
     """
     return struct(
         _output_group_list = memory_efficient_depset(
             transitive = [
-                info.bwb_output_groups._output_group_list
+                info.target_output_groups._output_group_list
                 for info in transitive_infos
             ],
         ),
     )
 
-def _process_output_group_files(
+def _to_output_groups_fields(
         *,
-        files,
-        is_indexstores,
-        output_group_name,
-        additional_bwb_outputs,
-        index_import):
-    # `list` copy is needed for some reason to prevent depset from changing
-    # underneath us. Without this it's nondeterministic which files are in it.
-    outputs_depsets = list(additional_bwb_outputs.get(output_group_name, []))
-
-    if is_indexstores:
-        direct = [index_import]
-    else:
-        direct = None
-
-    return memory_efficient_depset(
-        direct,
-        transitive = outputs_depsets + [files],
-    )
-
-def _bwb_to_output_groups_fields(
-        *,
-        bwb_output_groups,
-        additional_bwb_outputs = {},
-        index_import):
+        additional_outputs = {},
+        target_output_groups):
     """Generates a dictionary to be splatted into `OutputGroupInfo`.
 
     Args:
-        bwb_output_groups: A value returned from `bwb_output_groups.collect`.
-        additional_bwb_outputs: A `dict` that maps the output group name of
+        additional_outputs: A `dict` that maps the output group name of
             targets to a `list` of `depset`s of `File`s that should be merged
             into the output group map for that output group name.
-        index_import: A `File` for `index-import`.
+        target_output_groups: A value returned from `output_groups.collect`.
 
     Returns:
         A `dict` where the keys are output group names and the values are
         `depset` of `File`s.
     """
     output_groups = {
-        name: _process_output_group_files(
-            files = files,
-            is_indexstores = is_indexstores,
-            output_group_name = name,
-            additional_bwb_outputs = additional_bwb_outputs,
-            index_import = index_import,
+        name: memory_efficient_depset(
+            transitive = [files] + additional_outputs.get(name, []),
         )
-        for name, is_indexstores, files in bwb_output_groups._output_group_list.to_list()
+        for name, files in target_output_groups._output_group_list.to_list()
     }
 
     output_groups["all_b"] = memory_efficient_depset(
@@ -516,8 +475,8 @@ output_files = struct(
     merge = _merge_output_files,
 )
 
-bwb_output_groups = struct(
-    collect = _collect_bwb_output_groups,
-    merge = _merge_bwb_output_groups,
-    to_output_groups_fields = _bwb_to_output_groups_fields,
+output_groups = struct(
+    collect = _collect_output_groups,
+    merge = _merge_output_groups,
+    to_output_groups_fields = _to_output_groups_fields,
 )

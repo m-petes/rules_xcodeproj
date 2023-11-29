@@ -6,9 +6,9 @@ load("//xcodeproj/internal:build_settings.bzl", "get_product_module_name")
 load("//xcodeproj/internal:configuration.bzl", "calculate_configuration")
 load(
     "//xcodeproj/internal:memory_efficiency.bzl",
-    "memory_efficient_depset",
     "EMPTY_DEPSET",
     "EMPTY_TUPLE",
+    "memory_efficient_depset",
 )
 load("//xcodeproj/internal:target_id.bzl", "get_id")
 load(":compilation_providers.bzl", comp_providers = "compilation_providers")
@@ -19,7 +19,7 @@ load(
 load(":input_files.bzl", "input_files")
 load(":linker_input_files.bzl", "linker_input_files")
 load(":opts.bzl", "opts")
-load(":output_files.bzl", "output_files", bwb_ogroups = "bwb_output_groups")
+load(":output_files.bzl", "output_files", "output_groups")
 load(":pbxproj_partials.bzl", "pbxproj_partials")
 load("//xcodeproj/internal:platforms.bzl", "platforms")
 load(":processed_target.bzl", "processed_target")
@@ -124,7 +124,7 @@ def process_library_target(
     (
         target_outputs,
         provider_outputs,
-        bwb_output_groups_metadata,
+        target_output_groups_metadata,
     ) = output_files.collect(
         actions = ctx.actions,
         debug_outputs = debug_outputs,
@@ -182,9 +182,9 @@ def process_library_target(
     else:
         compiling_files = target_inputs.generated
 
-    bwb_output_groups = bwb_ogroups.collect(
+    target_output_groups = output_groups.collect(
         compiling_files = compiling_files,
-        metadata = bwb_output_groups_metadata,
+        metadata = target_output_groups_metadata,
         transitive_infos = transitive_infos,
     )
 
@@ -249,7 +249,6 @@ def process_library_target(
         xcode_target = None
 
     return processed_target(
-        bwb_output_groups = bwb_output_groups,
         compilation_providers = provider_compilation_providers,
         dependencies = dependencies,
         inputs = provider_inputs,
@@ -257,6 +256,7 @@ def process_library_target(
         outputs = provider_outputs,
         platform = platform.apple_platform,
         swift_debug_settings = swift_debug_settings,
+        target_output_groups = target_output_groups,
         transitive_dependencies = transitive_dependencies,
         xcode_target = xcode_target,
     )

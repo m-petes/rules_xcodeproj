@@ -113,6 +113,11 @@ def make_xcodeproj_aspect(
             ),
             "_focused_labels": attr.string_list(default = focused_labels),
             "_generator_name": attr.string(default = generator_name),
+            "_link_params_processor": attr.label(
+                cfg = "exec",
+                default = Label("//tools/params_processors:cat_link_params_processor"),
+                executable = True,
+            ),
             "_owned_extra_files": attr.label_keyed_string_dict(
                 allow_files = True,
                 default = owned_extra_files,

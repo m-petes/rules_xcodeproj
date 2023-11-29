@@ -134,7 +134,7 @@ if [[ $for_fixture -eq 1 ]]; then
     fi
   done
   for file in "${xcfilelists[@]}"; do
-    :>"$dest/rules_xcodeproj/bazel/${file##*/}"
+    :>"$dest/rules_xcodeproj/${file##*/}"
   done
 else
   $cp_cmd "${bazel_integration_files[@]}" "$dest/rules_xcodeproj/bazel"

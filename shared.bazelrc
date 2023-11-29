@@ -5,9 +5,6 @@ build --incompatible_disallow_empty_glob
 # Don't create convenience symlinks
 build --experimental_convenience_symlinks=ignore
 
-# Use Bzlmod
-build --enable_bzlmod
-
 # Faster digest hashing with BLAKE3
 startup --digest_function=blake3
 
@@ -33,16 +30,13 @@ build --host_macos_minimum_os=13.0
 startup --output_base=bazel-output-base
 
 # Prevent trying to evaluate checked in generated fixtures
-build --deleted_packages=test/fixtures/generated/xcodeproj_bwx,test/fixtures/generated/xcodeproj_bwb,test/fixtures/generator/generated/xcodeproj_bwx,test/fixtures/generator/generated/xcodeproj_bwb
+build --deleted_packages=test/fixtures/generated/xcodeproj_bwx,test/fixtures/generated/xcodeproj_bwb
 
 # Ensure we work with BwtB
 build --experimental_inmemory_jdeps_files
 build --experimental_inmemory_dotd_files
 build --remote_download_outputs=minimal
 test --remote_download_outputs=toplevel
-
-# Work around https://github.com/bazelbuild/bazel/issues/11920
-run --remote_download_outputs=all
 
 # rules_xcodeproj needs toplevel to download needed outputs
 build:rules_xcodeproj --remote_download_outputs=toplevel
