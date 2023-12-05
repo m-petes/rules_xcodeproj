@@ -59,7 +59,7 @@ information.
     - etc.
 - [`pbxnativetargets`](pbxnativetargets/README.md):
   - Run once on each shard of all the targets
-  - Each shared creates two or more files:
+  - Each shard creates two or more files:
     - A partial containing all of the `PBXNativeTarget` related objects:
       - `PBXNativeTarget`
       - `XCBuildConfiguration`
