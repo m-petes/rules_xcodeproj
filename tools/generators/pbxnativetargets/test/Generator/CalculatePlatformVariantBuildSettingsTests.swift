@@ -365,9 +365,9 @@ class CalculatePlatformVariantBuildSettingsTests: XCTestCase {
         let productPath = "a/test.xctest"
         let platformVariant = Target.PlatformVariant.mock(
             unitTestHost: .init(
-                packageBinDir: "some/packageBin/dir",
-                productPath: "a/path/Host.app",
-                executableName: "Executable_Name"
+                basename: "a/path/Host.app",
+                executableName: "Executable_Name",
+                packageBinDir: "some/packageBin/dir"
             )
         )
 

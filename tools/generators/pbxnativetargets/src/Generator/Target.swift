@@ -36,9 +36,9 @@ enum Target {
     }
 
     struct UnitTestHost: Equatable {
-        let packageBinDir: String
         let basename: String
         let executableName: String
+        let packageBinDir: String
     }
 }
 
@@ -68,9 +68,9 @@ extension Dictionary<TargetID, Target.UnitTestHost> {
                 (
                     id,
                     .init(
-                        packageBinDir: packageBinDir,
                         basename: basename,
-                        executableName: executableName
+                        executableName: executableName,
+                        packageBinDir: packageBinDir
                     )
                 )
             )
