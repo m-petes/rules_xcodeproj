@@ -33,14 +33,14 @@ extension Generator {
             createSourcesBuildPhaseObject: CreateSourcesBuildPhaseObject,
             callable: @escaping Callable = Self.defaultCallable
         ) {
-            self.createBazelIntegrationBuildPhaseObject = 
+            self.createBazelIntegrationBuildPhaseObject =
                 createBazelIntegrationBuildPhaseObject
             self.createBuildFileSubIdentifier = createBuildFileSubIdentifier
-            self.createCreateCompileDependenciesBuildPhaseObject = 
+            self.createCreateCompileDependenciesBuildPhaseObject =
                 createCreateCompileDependenciesBuildPhaseObject
-            self.createCreateLinkDependenciesBuildPhaseObject = 
+            self.createCreateLinkDependenciesBuildPhaseObject =
                 createCreateLinkDependenciesBuildPhaseObject
-            self.createEmbedAppExtensionsBuildPhaseObject = 
+            self.createEmbedAppExtensionsBuildPhaseObject =
                 createEmbedAppExtensionsBuildPhaseObject
             self.createProductBuildFileObject = createProductBuildFileObject
             self.createSourcesBuildPhaseObject = createSourcesBuildPhaseObject
@@ -266,13 +266,37 @@ extension Generator.CreateBuildPhases {
 private extension PBXProductType {
     var hasCompilePhase: Bool {
         switch self {
+        case .application,
+             .onDemandInstallCapableApplication,
+             .appExtension,
+             .intentsServiceExtension,
+             .messagesExtension,
+             .stickerPack,
+             .tvExtension,
+             .extensionKitExtension,
+             .watch2Extension,
+             .xcodeExtension,
+             .bundle,
+             .ocUnitTestBundle,
+             .unitTestBundle,
+             .uiTestBundle,
+             .framework,
+             .staticFramework,
+             .xcFramework,
+             .dynamicLibrary,
+             .staticLibrary,
+             .driverExtension,
+             .instrumentsPackage,
+             .metalLibrary,
+             .systemExtension,
+             .commandLineTool,
+             .xpcService:
+            return true
         case .messagesApplication,
              .watch2App,
              .watch2AppContainer,
              .resourceBundle:
             return false
-        default:
-            return true
         }
     }
 }

@@ -122,7 +122,21 @@ private extension PBXProductType {
             return "$BAZEL_INTEGRATION_DIR/appex.exclude.rsynclist"
         case .watch2App:
             return "$BAZEL_INTEGRATION_DIR/watchos2_app.exclude.rsynclist"
-        default:
+        case .stickerPack,
+             .xcodeExtension,
+             .resourceBundle,
+             .bundle,
+             .ocUnitTestBundle,
+             .staticFramework,
+             .xcFramework,
+             .dynamicLibrary,
+             .staticLibrary,
+             .driverExtension,
+             .instrumentsPackage,
+             .metalLibrary,
+             .systemExtension,
+             .commandLineTool,
+             .xpcService:
             return ""
         }
     }

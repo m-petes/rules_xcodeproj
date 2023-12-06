@@ -457,15 +457,6 @@ private let baseBuildSettings = noPlatformBuildSettings.updating([
     "MACOSX_DEPLOYMENT_TARGET": "9.4.1",
 ])
 
-private let bwxBuildSettings = baseBuildSettings.updating([
-    "OTHER_SWIFT_FLAGS": #"""
--Xcc -ivfsoverlay \#
--Xcc $(DERIVED_FILE_DIR)/xcode-overlay.yaml \#
--Xcc -ivfsoverlay \#
--Xcc $(OBJROOT)/bazel-out-overlay.yaml
-"""#.pbxProjEscaped,
-])
-
 private extension Target.PlatformVariant {
     static func mock(
         xcodeConfigurations: [String] = ["CONFIG"],

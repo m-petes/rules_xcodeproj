@@ -165,7 +165,16 @@ private extension PBXProductType {
              .commandLineTool,
              .xpcService:
             return true
-        default:
+        case .stickerPack,
+             .resourceBundle,
+             .bundle,
+             .framework,
+             .staticFramework,
+             .xcFramework,
+             .dynamicLibrary,
+             .staticLibrary,
+             .instrumentsPackage,
+             .metalLibrary:
             return false
         }
     }
