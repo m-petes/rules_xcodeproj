@@ -158,7 +158,7 @@ extension Generator.CalculatePlatformVariantBuildSettings {
                 .init(
                     key: "TEST_HOST",
                     value: #"""
-"$(BUILD_DIR)/\#(testHost.packageBinDir)/\#(testHost.productPath)/\#(testHost.executableName)"
+"$(BUILD_DIR)/\#(testHost.packageBinDir)/\#(testHost.basename)/\#(testHost.executableName)"
 """#
                 )
             )

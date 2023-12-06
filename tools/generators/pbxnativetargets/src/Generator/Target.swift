@@ -37,7 +37,7 @@ enum Target {
 
     struct UnitTestHost: Equatable {
         let packageBinDir: String
-        let productPath: String
+        let basename: String
         let executableName: String
     }
 }
@@ -60,7 +60,7 @@ extension Dictionary<TargetID, Target.UnitTestHost> {
                 try rawArgs.consumeArg("target-id", as: TargetID.self, in: url)
             let packageBinDir =
                 try rawArgs.consumeArg("package-bin-dir", in: url)
-            let productPath = try rawArgs.consumeArg("product-path", in: url)
+            let basename = try rawArgs.consumeArg("basename", in: url)
             let executableName =
                 try rawArgs.consumeArg("executable-name", in: url)
 
@@ -69,7 +69,7 @@ extension Dictionary<TargetID, Target.UnitTestHost> {
                     id,
                     .init(
                         packageBinDir: packageBinDir,
-                        productPath: productPath,
+                        basename: basename,
                         executableName: executableName
                     )
                 )
